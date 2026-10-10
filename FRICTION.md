@@ -417,9 +417,32 @@ fine the whole time. Polly, on the same credentials, worked immediately.
 that wants Bedrock, and the information needed to get through it is spread
 across two listings, one console form, and four error strings.
 
+**And the form has no address.** The error says "Fill out the Anthropic use
+case details form". The console page named after exactly that — **Model
+access**, still in the left nav, still the first search result — now renders
+only:
+
+> Model access page has been retired. Serverless foundation models are now
+> automatically enabled across all AWS commercial regions when first invoked
+> in your account […] Note that for Anthropic models, first-time users may
+> need to submit use case details before they can access the model.
+
+So the page that exists to grant access tells you access is automatic, then
+tells you it is not automatic for the models you came for, and does not link
+the form. The actual route is Model catalog → an Anthropic model → Open in
+Playground → invoke, at which point the form appears. Three navigations and a
+model invocation to reach a form that one URL would have served, discovered by
+reading a deprecation notice rather than any error message.
+
+There is a CLI shape for it, `aws bedrock put-use-case-for-model-access`, but
+its only argument is `--form-data`, an opaque blob with no documented schema
+and no `--generate-cli-skeleton` output that describes the fields. So the
+console is the only practical path, and the console no longer advertises it.
+
 **Suggestion:** One preflight API — `GET /model-access/{modelId}` — returning
 the callable ID, whether the use-case form is on file, and whether the
 agreement is accepted, so a client can tell a developer all of it at once.
-Failing that: put the console URL in the use-case-form error, and make
-`list-foundation-models` return the inference-profile ID that actually works
-rather than an ID that is guaranteed to fail.
+Failing that, three cheap fixes: put the form's URL in the error that names
+the form; have the retired Model access page link the form instead of
+describing it; and make `list-foundation-models` return the inference-profile
+ID that actually works rather than an ID that is guaranteed to fail.
