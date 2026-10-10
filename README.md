@@ -160,6 +160,51 @@ fixture game is 53.11s against 52.73s real.
 `supply` — decided after every selection pass rather than from the first one, so
 it points at the knob worth turning.
 
+## The Fire TV app
+
+`tv/` is a React Native app for Vega OS (SDK 0.24, RN 0.83), built from the
+`helloWorld` template. Press **Catch Up** and it fetches a recap and plays it as
+one animated card per play, ending at the live edge.
+
+```bash
+cd tv && npm install
+npm run build:debug
+vega virtual-device start --display-res=1920,1080
+vega run-app build/aarch64-debug/catchup60_aarch64.vpkg \
+  com.pradeepkonda.catchup60.main -d VirtualDevice
+```
+
+Use the `aarch64` build on an M-series Mac and `x86_64` on Intel; `armv7` is
+the Fire TV Stick. The app needs `./run serve` running on the host.
+
+### Three things the Vega Virtual Device taught us
+
+**The host is at `10.0.2.2`.** Not `localhost` — the device has its own network
+stack, same convention as the Android emulator. Undocumented.
+
+**Audio must be https.** The media player refuses http outright
+(`isUriSchemeSecure ... insecure protocol/scheme http`). Separately, `fetch()`
+rejects a self-signed certificate that the *media pipeline* accepts, so local
+development runs http for manifests and https for audio:
+
+```bash
+./run serve --port 8080           # manifests
+./run serve --port 8443 --https   # audio
+```
+
+In production both are https from one trusted origin and this split disappears.
+
+**The simulator cannot play audio.** Its sink never initializes —
+`leaudiosink ... Failed to create streamhelper object`, `sink not negotiated` —
+and the element reports `MEDIA_ERR_SRC_NOT_SUPPORTED`, which points at the
+content instead. It is not the content: a plain mp3 from a public trusted origin
+fails the same way, and no codec error appears in the log.
+
+So **cards animate against the manifest's own clock, not the audio element's
+`currentTime`.** The manifest's timings come from the real synthesized audio, so
+the two agree, and audio attaches opportunistically where hardware supports it.
+On the simulator the recap is correct and silent.
+
 ## Tests
 
 ```bash

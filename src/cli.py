@@ -54,6 +54,10 @@ def cmd_doctor(args) -> int:
     ok, reason = kokoro.available()
     report(ok, "kokoro speech", reason)
 
+    from .speech import encode
+    ok, reason = encode.available()
+    report(ok, "ffmpeg (mp3 for Vega)", reason)
+
     try:
         from . import mlb
         games = mlb.schedule(date=date.today().isoformat())
@@ -146,6 +150,12 @@ def cmd_synthetic(args) -> int:
     return _emit(manifest, args)
 
 
+def cmd_serve(args) -> int:
+    from .server import serve
+    serve(port=args.port, use_tls=args.https)
+    return 0
+
+
 def cmd_clean(args) -> int:
     """Drop intermediates. Never touches out/."""
     from . import cache as recap_cache
@@ -195,6 +205,12 @@ def build_parser() -> argparse.ArgumentParser:
         "synthetic", help="recap the offline fixture game (no network)")
     add_recap_flags(synthetic)
     synthetic.set_defaults(fn=cmd_synthetic)
+
+    server = sub.add_parser("serve", help="serve manifests and audio over HTTP")
+    server.add_argument("--port", type=int, default=8080)
+    server.add_argument("--https", action="store_true",
+                        help="serve over TLS; Vega's player refuses http:// audio")
+    server.set_defaults(fn=cmd_serve)
 
     clean = sub.add_parser("clean", help="drop cache/work")
     clean.set_defaults(fn=cmd_clean)

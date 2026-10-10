@@ -150,13 +150,21 @@ def from_api(game_pk: int, as_of: int | None = None,
     return result
 
 
-def kokoro_synth(workdir, *, progress: bool = False) -> SynthFn:
+def kokoro_synth(workdir, *, progress: bool = False,
+                 encode: bool = True) -> SynthFn:
     """A synth function bound to a working directory.
 
     Imported lazily so the engine path never pulls numpy, soundfile or a 325 MB
     ONNX model into a process that only wants a manifest.
+
+    Encodes to mp3 by default because Vega's AudioPlayer silently refuses wav —
+    see speech/encode.py. The wav stays on disk as the timing source.
     """
     def run(segments: list[dict]):
         from .speech import kokoro
-        return kokoro.synthesize(segments, workdir, progress=progress)
+        wav, durations = kokoro.synthesize(segments, workdir, progress=progress)
+        if not encode:
+            return wav, durations
+        from .speech.encode import to_mp3
+        return to_mp3(wav), durations
     return run

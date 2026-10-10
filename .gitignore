@@ -5,3 +5,13 @@ __pycache__/
 cache/
 out/
 .DS_Store
+
+# React Native / Vega app (tv/)
+node_modules/
+tv/build/
+tv/dist/
+*.vpkg
+CMakeUserPresets.json
+npm-debug.log
+.vscode/
+.idea/

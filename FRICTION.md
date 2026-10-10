@@ -189,3 +189,108 @@ the expensive kind.
 
 **Suggestion:** Return `404` for an unknown gamePk. If the `200` is load-bearing
 for some other consumer, document `codedGameState: "X"` as the sentinel.
+
+---
+
+## 7. The Vega Virtual Device cannot play audio at all
+
+**Task:** Play a narration track in a Vega app and animate UI against it.
+
+**Steps:** `AudioPlayer` from `@amazon-devices/react-native-w3cmedia`:
+`setMediaControlFocus(componentInstance)`, `initialize()`, set `src` to an
+https mp3, `play()`.
+
+**Expected:** Audio, and a `currentTime` that advances.
+
+**What happened:** The media element reaches `playing` — the full event sequence
+`loadstart → play → waiting → progress → loadedmetadata → loadeddata → canplay
+→ playing` arrives — and then fires `error` with code 4
+(`MEDIA_ERR_SRC_NOT_SUPPORTED`). `currentTime` reads `NaN`, `duration` reads
+`NaN`, `readyState` is 3 while `networkState` is 0.
+
+Error code 4 says "your content is unsupported", so the first day went into
+the content: re-encoded wav to mp3, then 24 kHz to 48 kHz, mono to stereo,
+added HTTP Range support, checked `canPlayType` for every audio type. The
+device log says what is actually wrong:
+
+> ```
+> leaudiosink, bkvleaudiosink.c, 537, bkv_leaudiosink_prepare,
+>   Failed to create streamhelper object
+> sink not negotiated.
+> Audio Stream handle not available
+> ```
+
+The audio **sink** never initializes. There is no codec error anywhere in the
+log. A plain mp3 from a public, publicly-trusted origin fails identically, which
+rules out our content and our certificate.
+
+**Severity:** Critical for any app with audio. Audio simply cannot be
+exercised on the simulator, and the error code actively points away from the
+cause — a developer with no physical device will spend their time re-encoding
+assets that were always fine.
+
+**Workaround:** Drive UI animation from our own timeline rather than from
+`currentTime`, and let audio attach opportunistically where the hardware
+supports it. This turned out to be better design regardless, but it was forced
+rather than chosen.
+
+**Suggestion:** Two things, in order of value. First, surface a distinct error
+when the sink fails to initialize rather than `MEDIA_ERR_SRC_NOT_SUPPORTED` —
+the current code sends developers to debug the one thing that is not broken.
+Second, state plainly in the Vega Virtual Device documentation that audio output
+is unavailable there. One sentence in the VVD page would have saved a day.
+
+---
+
+## 8. Media requires https; `fetch` rejects the certificate that media accepts
+
+**Task:** Serve a manifest and an audio file from a development server on the
+host Mac to an app on the Vega Virtual Device.
+
+**What happened:** Three separate constraints, discovered one at a time.
+
+1. The host is not on loopback from the device. `localhost` and `127.0.0.1`
+   both fail; `10.0.2.2` works, matching the Android emulator convention. This
+   is not in the Vega docs.
+2. The media player refuses plain http outright:
+   `isUriSchemeSecure Got an insecure protocol/scheme http, return error`,
+   then `openMedia Invalid URI`. Audio over http is impossible, whatever the
+   codec. Nothing in the `AudioPlayer` documentation mentions this.
+3. `fetch()` rejects our self-signed development certificate
+   ("Network request failed") while the **media pipeline accepts it**. The two
+   subsystems disagree about trust, so a development setup needs http for JSON
+   and https for audio simultaneously.
+
+**Severity:** Important. Each one individually costs an hour of guessing,
+because all three present as "nothing happens".
+
+**Workaround:** Run two listeners, http on 8080 for manifests and https on 8443
+for audio, and generate a self-signed certificate covering `10.0.2.2`. In
+production both are https from one trusted origin and the problem disappears —
+it is purely a local-development tax.
+
+**Suggestion:** Document the https requirement on the `AudioPlayer` page, and
+document `10.0.2.2` on the Vega Virtual Device page. Ideally, let the VVD trust
+a developer-supplied certificate so one origin can serve both.
+
+---
+
+## 9. The app's own `console.log` reaches the log stream only intermittently
+
+**Task:** Debug on-device behaviour with `vega device start-log-stream`.
+
+**What happened:** Our `console.log` lines appeared in some runs and were
+entirely absent in others — `grep -c CATCHUP60` returning 0 across a 2,671-line
+capture — while in the same capture the w3cmedia library's own JavaScript logs
+came through reliably. Nothing distinguished the runs; the code was unchanged.
+
+**Severity:** Important. It is not a missing feature, it is an unreliable one,
+which is worse: it was reasonable to conclude the app had crashed before
+reaching the code.
+
+**Workaround:** Stopped trusting the log stream. The app now reports progress
+by HTTP GET to the development server, which always arrives.
+
+**Suggestion:** If JS console output is sampled or rate-limited, say so in the
+docs. An unreliable log is worse than no log, because the absence of a line
+reads as the absence of the event.
