@@ -417,6 +417,26 @@ fine the whole time. Polly, on the same credentials, worked immediately.
 that wants Bedrock, and the information needed to get through it is spread
 across two listings, one console form, and four error strings.
 
+**And which door shows the form is not guessable.** On one account, in one
+region, at one moment, the Anthropic models answer in three different ways:
+
+| Model | Response |
+|---|---|
+| `claude-haiku-4-5` | `Model use case details have not been submitted` |
+| `claude-sonnet-4-5`, `claude-opus-4-5`, `claude-sonnet-4` | `Too many tokens per day, please wait before trying again` |
+| `claude-opus-5`, `claude-haiku-5-5` | `… is not available for this account` |
+
+Only the first of those leads anywhere. Opening the newest model in the
+playground — the obvious thing to do, and what the retired Model access page
+tells you to do — produces the red "not available for this account" banner and
+no form, so the account looks rejected rather than unstarted. The second group
+is a daily token quota of zero on an account that has spent nothing, phrased
+as rate limiting, which reads like a transient error and is not.
+
+Finding the one model that offers the form took a scripted sweep of every
+Anthropic inference profile in the region, comparing error strings. That is
+not a reasonable first-hour task.
+
 **And the form has no address.** The error says "Fill out the Anthropic use
 case details form". The console page named after exactly that — **Model
 access**, still in the left nav, still the first search result — now renders
