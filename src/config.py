@@ -38,12 +38,36 @@ TOTAL_SECONDS = 60.0
 INTRO_SECONDS = 5.0
 OUTRO_SECONDS = 4.0
 
-# Speech rate for the pre-synthesis budget pass. Lifted from shorts-factory,
-# where it held up across hundreds of Kokoro renders.
+# Speech rate for the pre-synthesis budget pass. Lifted from shorts-factory and
+# confirmed here against rendered audio: 150 words of narration measured 57.49s
+# of speech, or 2.61 words/sec.
 WORDS_PER_SECOND = 2.6
+
+# Headroom for per-segment variance. The rate above is accurate in aggregate but
+# not per sentence — short lines synthesize faster per word than long ones
+# (measured 3.10 w/s on a 14-word outro against 2.46 on an 18-word play), so a
+# recap packed exactly to 60.0s can render at 60.4s. Two percent is more than
+# the observed spread and costs about one second of content.
+BUDGET_MARGIN = 0.02
 
 STATSAPI = os.environ.get("CATCHUP60_STATSAPI", "https://statsapi.mlb.com")
 HTTP_TIMEOUT = float(os.environ.get("CATCHUP60_HTTP_TIMEOUT", "20"))
+
+# Kokoro weights. Overridable so the 330 MB pair can be shared with sibling
+# projects instead of downloaded per repo.
+KOKORO_DIR = Path(os.environ.get("CATCHUP60_KOKORO_DIR", str(MODELS)))
+KOKORO_MODEL = KOKORO_DIR / "kokoro-v1.0.onnx"
+KOKORO_VOICES = KOKORO_DIR / "voices-v1.0.bin"
+
+# A catch-up is brisk by nature — the viewer is waiting to get to the live game,
+# not settling in for a documentary. shorts-factory runs 0.92 for atmosphere;
+# this runs slightly above natural pace for the opposite reason.
+VOICE = os.environ.get("CATCHUP60_VOICE", "bm_george")
+SPEED = float(os.environ.get("CATCHUP60_SPEED", "1.05"))
+
+# Silence after each segment. Doubles as the card-change beat in the TV app: the
+# cut lands in the gap, not over the voice.
+SEGMENT_GAP = 0.28
 
 for directory in (CACHE, OUT, WORK, MODELS):
     directory.mkdir(parents=True, exist_ok=True)

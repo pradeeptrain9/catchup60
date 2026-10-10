@@ -14,6 +14,18 @@ from . import config, fixtures, recap
 from .mlb import FeedError
 
 
+def _synth_for(args, label: str):
+    """Build the synth callable, or None when audio was not asked for."""
+    if not getattr(args, "audio", False):
+        return None
+    from .speech import kokoro
+    ok, reason = kokoro.available()
+    if not ok:
+        raise SystemExit(f"cannot synthesize: {reason}")
+    workdir = config.WORK / label
+    return recap.kokoro_synth(workdir, progress=True)
+
+
 def cmd_doctor(args) -> int:
     """Check everything needed to produce a recap, with the fix inline."""
     problems = 0
@@ -37,6 +49,10 @@ def cmd_doctor(args) -> int:
 
     report(fixtures.SYNTHETIC.exists(), "synthetic fixture",
            f"missing {fixtures.SYNTHETIC}")
+
+    from .speech import kokoro
+    ok, reason = kokoro.available()
+    report(ok, "kokoro speech", reason)
 
     try:
         from . import mlb
@@ -88,9 +104,14 @@ def _emit(manifest: dict, args) -> int:
             f"{manifest['totalSeconds']}s, {engine['selected']} of "
             f"{engine['considered']} plays, runs "
             f"{engine['runsExplained']}/{engine['runsTotal']}, "
-            f"limited by {engine['limitedBy']}",
+            f"limited by {engine['limitedBy']}, "
+            f"timings from {manifest['timingSource']}",
             file=sys.stderr,
         )
+        if manifest.get("audioUrl"):
+            print(f"audio: {manifest['audioUrl']}", file=sys.stderr)
+        if manifest.get("speechSkipped"):
+            print(f"speech skipped: {manifest['speechSkipped']}", file=sys.stderr)
         for segment in manifest["segments"]:
             print(f"  {segment['start']:6.2f} +{segment['dur']:5.2f}  "
                   f"[{segment['kind']}] {segment['text']}", file=sys.stderr)
@@ -98,9 +119,11 @@ def _emit(manifest: dict, args) -> int:
 
 
 def cmd_recap(args) -> int:
+    label = f"{args.game_pk}-{args.as_of if args.as_of is not None else 'latest'}"
     try:
         manifest = recap.from_api(args.game_pk, as_of=args.as_of,
-                                  total_seconds=args.seconds)
+                                  total_seconds=args.seconds,
+                                  synth=_synth_for(args, label))
     except FeedError as exc:
         raise SystemExit(f"could not load game {args.game_pk}: {exc}")
     except ValueError as exc:
@@ -110,8 +133,10 @@ def cmd_recap(args) -> int:
 
 def cmd_synthetic(args) -> int:
     context, plays = fixtures.load_synthetic()
+    label = f"synthetic-{args.as_of if args.as_of is not None else 'latest'}"
     manifest = recap.build(context, plays, as_of=args.as_of,
-                           total_seconds=args.seconds)
+                           total_seconds=args.seconds,
+                           synth=_synth_for(args, label))
     return _emit(manifest, args)
 
 
@@ -149,6 +174,8 @@ def build_parser() -> argparse.ArgumentParser:
         target.add_argument("--out", help="write to out/<name> instead of stdout")
         target.add_argument("--summary", action="store_true",
                             help="print a human-readable breakdown to stderr")
+        target.add_argument("--audio", action="store_true",
+                            help="synthesize narration; timings become real")
 
     live = sub.add_parser("recap", help="recap a real game by gamePk")
     live.add_argument("game_pk", type=int)

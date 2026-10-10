@@ -9,6 +9,7 @@ from the pre-synthesis estimate. The app is entitled to know it is being handed
 a guess.
 """
 
+from . import config
 from .engine.pack import PackResult, runs_on_each_play
 from .engine.rank import estimate_seconds
 from .engine.state import GameContext, GameState, Play
@@ -67,6 +68,7 @@ def build(
     guard_violations: list[str] | None = None,
     runs_explained: int = 0,
     runs_total: int = 0,
+    speech_skipped: str | None = None,
 ) -> dict:
     """Stamp absolute timings onto segments and assemble the manifest."""
     if durations is not None and len(durations) != len(segments):
@@ -77,12 +79,18 @@ def build(
     timing_source = "tts" if durations is not None else "estimate"
     timed: list[dict] = []
     cursor = 0.0
+    last = len(segments) - 1
     for position, segment in enumerate(segments):
-        duration = (
-            durations[position]
-            if durations is not None
-            else estimate_seconds(segment["text"])
-        )
+        if durations is not None:
+            duration = durations[position]
+        else:
+            # Estimated timings must describe the same timeline synthesized
+            # audio would, gaps included, or the two modes disagree about when
+            # each card changes. Kokoro folds the gap into its own durations;
+            # the estimate has to do the same, and skip it on the last segment
+            # for the same reason synthesis does.
+            tail = 0.0 if position == last else config.SEGMENT_GAP
+            duration = estimate_seconds(segment["text"]) + tail
         entry = dict(segment)
         entry["start"] = round(cursor, 3)
         entry["dur"] = round(duration, 3)
@@ -103,6 +111,7 @@ def build(
         "narrationSource": narration_source,
         "audioUrl": audio_url,
         "guardViolations": guard_violations or [],
+        "speechSkipped": speech_skipped,
         "engine": {
             "considered": pack_result.considered,
             "selected": len(pack_result.plays),

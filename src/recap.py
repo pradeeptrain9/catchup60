@@ -5,6 +5,8 @@ checks, and only then would speech be synthesized. Synthesis sits downstream of
 the guard so audio can never say a number the text was not allowed to.
 """
 
+from typing import Callable
+
 from . import config, manifest, mlb
 from .engine import pack as packer
 from .engine.rank import estimate_seconds
@@ -13,13 +15,20 @@ from .narrate import guard, script
 
 
 def play_cost(play: Play) -> float:
-    """What a play actually costs: the sentence that will be spoken about it.
+    """What a play actually costs: the spoken sentence plus its trailing gap.
 
-    Costing the raw StatsAPI description instead undercounts by the inning
-    phrase the narrator prepends, which is how a 60-second budget quietly
-    becomes 65 seconds.
+    Two undercounts were found here by measuring rendered audio against the
+    estimate. Costing the raw StatsAPI description omits the inning phrase the
+    narrator prepends, which turned a 60-second budget into 65. Costing speech
+    alone omits the silence between segments — eight gaps of 0.28s is 2.24s,
+    which is how a 57.7s estimate rendered as 59.7s of audio.
+
+    The gap belongs to the segment because the TV app changes cards in it.
     """
-    return estimate_seconds(script.play_text(play))
+    return estimate_seconds(script.play_text(play)) + config.SEGMENT_GAP
+
+
+SynthFn = Callable[[list[dict]], tuple[object, list[float]]]
 
 
 def build(
@@ -28,6 +37,7 @@ def build(
     *,
     as_of: int | None = None,
     total_seconds: float = config.TOTAL_SECONDS,
+    synth: SynthFn | None = None,
 ) -> dict:
     """Build a recap manifest for a game truncated at `as_of`.
 
@@ -45,12 +55,15 @@ def build(
 
     # Reserve the fixed segments at their real length rather than at a constant.
     # The constants drift the moment anyone rewords the intro.
-    intro_cost = estimate_seconds(script.intro_text(context, state))
+    intro_cost = (
+        estimate_seconds(script.intro_text(context, state)) + config.SEGMENT_GAP
+    )
+    # The outro is last, so it has no trailing gap to pay for.
     outro_cost = estimate_seconds(script.outro_text(context, state))
 
     result = packer.pack(
         plays,
-        total_seconds=total_seconds,
+        total_seconds=total_seconds * (1.0 - config.BUDGET_MARGIN),
         intro_seconds=intro_cost,
         outro_seconds=outro_cost,
         cost_fn=play_cost,
@@ -64,6 +77,20 @@ def build(
     # until the day the model path needs it.
     violations = guard.check_segments(segments, payload)
 
+    durations: list[float] | None = None
+    audio_url: str | None = None
+    speech_skipped: str | None = None
+    if synth is not None:
+        if violations:
+            # Narration that failed the guard is never spoken. Falling back to
+            # estimated timings keeps the manifest usable while making the
+            # refusal visible, which is the behaviour agrin settled on: a wrong
+            # figure read aloud is worse than a recap with no audio.
+            speech_skipped = "narration failed the numeric guard"
+        else:
+            audio_path, durations = synth(segments)
+            audio_url = str(audio_path)
+
     deltas = packer.runs_on_each_play(plays)
     selected = {p.index for p in result.plays}
 
@@ -75,13 +102,30 @@ def build(
         as_of=cursor,
         narration_source="template",
         guard_violations=violations,
+        durations=durations,
+        audio_url=audio_url,
+        speech_skipped=speech_skipped,
         runs_explained=sum(deltas[i] for i in selected),
         runs_total=plays[-1].away_score + plays[-1].home_score,
     )
 
 
 def from_api(game_pk: int, as_of: int | None = None,
-             total_seconds: float = config.TOTAL_SECONDS) -> dict:
+             total_seconds: float = config.TOTAL_SECONDS,
+             synth: SynthFn | None = None) -> dict:
     context = mlb.context(game_pk)
     plays = mlb.win_probability(game_pk)
-    return build(context, plays, as_of=as_of, total_seconds=total_seconds)
+    return build(context, plays, as_of=as_of, total_seconds=total_seconds,
+                 synth=synth)
+
+
+def kokoro_synth(workdir, *, progress: bool = False) -> SynthFn:
+    """A synth function bound to a working directory.
+
+    Imported lazily so the engine path never pulls numpy, soundfile or a 325 MB
+    ONNX model into a process that only wants a manifest.
+    """
+    def run(segments: list[dict]):
+        from .speech import kokoro
+        return kokoro.synthesize(segments, workdir, progress=progress)
+    return run

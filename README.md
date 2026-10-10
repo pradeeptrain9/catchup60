@@ -29,6 +29,11 @@ catch that after the fact.
 `synthetic` uses a fictional game committed to the repo. No key, no network, no
 live game required — it works in November, long after the postseason.
 
+`setup.sh` needs a Python between 3.10 and 3.13 and will find one: kokoro-onnx
+does not support 3.14. The engine alone runs on any 3.11+; only speech has the
+ceiling. It also fetches the Kokoro weights (~330 MB, once). Set
+`CATCHUP60_KOKORO_DIR` to share them with another project instead.
+
 Against real games:
 
 ```bash
@@ -40,6 +45,22 @@ Against real games:
 `--as-of` takes an `atBatIndex`, so a finished game replays exactly what a
 viewer would have been shown at that moment. That is what makes the demo
 rehearsable and the output testable.
+
+### Narration
+
+```bash
+./run synthetic --audio --summary
+./run recap 849820 --audio --out recap.json
+```
+
+`--audio` synthesizes the narration locally with Kokoro and replaces the
+manifest's estimated timings with the real ones (`timingSource` flips from
+`estimate` to `tts`). Runs about 3x faster than realtime — roughly 20 seconds
+for a 60-second recap — on CPU, with no key and no per-call cost.
+
+Synthesis is strictly downstream of the guard. If narration ever fails the
+numeric check, nothing is spoken: the manifest comes back on estimated timings
+with `speechSkipped` set. A wrong figure read aloud is worse than no audio.
 
 ## How it works
 
@@ -101,14 +122,23 @@ or overlap shows up on screen as a card that changes mid-sentence.
 ```
 
 `timingSource` is `estimate` until speech is synthesized and `tts` after. The
-app is entitled to know when it has been handed a guess.
+app is entitled to know when it has been handed a guess — though the two agree
+closely by construction: measured against rendered audio, the estimate for the
+fixture game is 53.11s against 52.73s real.
+
+`limitedBy` names what actually stopped the recap — `budget`, `count` or
+`supply` — decided after every selection pass rather than from the first one, so
+it points at the knob worth turning.
 
 ## Tests
 
 ```bash
-pytest           # offline; a clone with no network goes green
+pytest           # offline, no model needed; a bare clone goes green
+pytest -m tts    # real speech synthesis (needs the Kokoro weights)
 pytest -m live   # hits the real StatsAPI
 ```
+
+59 offline, 8 speech, 4 live.
 
 The live tests exist because the feed's shape is the one thing this project does
 not control, and a field rename would otherwise surface as a broken demo.

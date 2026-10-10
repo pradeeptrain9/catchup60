@@ -77,6 +77,7 @@ def pack(
     per_half: Counter[tuple[int, str]] = Counter()
     used = 0.0
     cap_reached: int | None = None
+    budget_blocked = False
 
     for cap in CAP_LADDER:
         if used >= budget * SATISFIED_AT or len(chosen) >= max_plays:
@@ -90,21 +91,29 @@ def pack(
             if cap is not None and per_half[play.half_key] >= cap:
                 continue
             cost = cost_fn(play)
-            if cost <= 0 or used + cost > budget:
+            if cost <= 0:
+                continue
+            if used + cost > budget:
+                budget_blocked = True
                 continue
             chosen.append(play)
             chosen_indexes.add(play.index)
             per_half[play.half_key] += 1
             used += cost
 
-    chosen, used, coverage_added = _ensure_scoring_coverage(
+    chosen, used, coverage_added, coverage_blocked = _ensure_scoring_coverage(
         chosen, plays, budget, used, max_plays, cost_fn
     )
+    before = len(chosen)
     chosen, used = _enforce_budget(chosen, plays, budget, used, cost_fn)
+    trimmed = before - len(chosen)
 
+    # Decided after every pass, not from phase 1 alone. Reporting "supply" when
+    # the budget is what actually stopped coverage sends whoever tunes this to
+    # the wrong knob.
     if len(chosen) >= max_plays:
         limited_by = "count"
-    elif used >= budget * SATISFIED_AT:
+    elif budget_blocked or coverage_blocked or trimmed:
         limited_by = "budget"
     else:
         limited_by = "supply"
@@ -145,7 +154,7 @@ def _ensure_scoring_coverage(
     used: float,
     max_plays: int,
     cost_fn: Callable[[Play], float],
-) -> tuple[list[Play], float, int]:
+) -> tuple[list[Play], float, int, bool]:
     """Make every run in the recap traceable to a play the viewer is shown.
 
     Swing ranking alone produces recaps where the score goes 2-0 to 4-0 across a
@@ -161,6 +170,7 @@ def _ensure_scoring_coverage(
     deltas = runs_on_each_play(plays)
     chosen_indexes = {p.index for p in chosen}
     added = 0
+    blocked = False
 
     scored_halves: dict[tuple[int, str], list[Play]] = {}
     for play in plays:
@@ -199,6 +209,11 @@ def _ensure_scoring_coverage(
 
             droppable = [p for p in chosen if deltas.get(p.index, 0) == 0]
             if not droppable:
+                # Nothing left to give up: every selection already explains a
+                # run, and a run is never dropped to describe another one. The
+                # remaining runs go unexplained for want of room, which the
+                # caller must be able to report accurately.
+                blocked = True
                 break
             weakest = min(droppable, key=lambda p: (p.swing, -p.index))
             chosen.remove(weakest)
@@ -209,7 +224,7 @@ def _ensure_scoring_coverage(
             used += cost
             added += 1
 
-    return chosen, used, added
+    return chosen, used, added, blocked
 
 
 def _enforce_budget(
