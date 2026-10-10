@@ -19,11 +19,16 @@ def _synth_for(args, label: str):
     if not getattr(args, "audio", False):
         return None
     workdir = config.WORK / label
-    if getattr(args, "voice", "kokoro") == "polly":
-        from .speech import polly
-        ok, reason = polly.available()
+    voice = getattr(args, "voice", "kokoro")
+    if voice in ("polly", "polly-ssml"):
+        module = "polly_ssml" if voice == "polly-ssml" else "polly"
+        from importlib import import_module
+        speech = import_module(f".speech.{module}", __package__)
+        ok, reason = speech.available()
         if not ok:
             raise SystemExit(f"cannot synthesize with Polly: {reason}")
+        if voice == "polly-ssml":
+            return recap.polly_ssml_synth(workdir)
         return recap.polly_synth(workdir, progress=True)
     from .speech import kokoro
     ok, reason = kokoro.available()
@@ -229,10 +234,12 @@ def build_parser() -> argparse.ArgumentParser:
                             help="synthesize narration; timings become real")
         target.add_argument("--no-cache", action="store_true", dest="no_cache",
                             help="rebuild even if this at-bat is cached")
-        target.add_argument("--voice", choices=("kokoro", "polly"),
+        target.add_argument("--voice",
+                            choices=("kokoro", "polly", "polly-ssml"),
                             default="kokoro",
                             help="speech backend for --audio (default kokoro,"
-                                 " local and free)")
+                                 " local and free; polly-ssml is the one-call"
+                                 " deployed path, no ffmpeg)")
         target.add_argument("--narrator", choices=("template", "bedrock"),
                             default="template",
                             help="who writes the words (default template,"

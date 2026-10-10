@@ -175,6 +175,18 @@ def polly_synth(workdir, *, progress: bool = False) -> SynthFn:
     return run
 
 
+def polly_ssml_synth(workdir) -> SynthFn:
+    """One Polly call, timed by speech marks. The path that runs in Lambda.
+
+    No progress argument: there is nothing to report per segment when the whole
+    recap is a single request.
+    """
+    def run(segments: list[dict]):
+        from .speech import polly_ssml
+        return polly_ssml.synthesize(segments, workdir)
+    return run
+
+
 def bedrock_rephrase() -> RephraseFn:
     def run(segments: list[dict], payload: dict):
         from .narrate import bedrock
