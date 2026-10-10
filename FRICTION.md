@@ -437,6 +437,23 @@ Finding the one model that offers the form took a scripted sweep of every
 Anthropic inference profile in the region, comparing error strings. That is
 not a reasonable first-hour task.
 
+**And past the form there is a fourth gate that describes itself wrongly.**
+With the use-case form on file, every Anthropic model answers
+`ThrottlingException: Too many tokens per day, please wait before trying
+again.` Three things are wrong with that sentence. It is not a throttle —
+nothing has been spent. There is no per-day quota for the model it refuses;
+Service Quotas lists ten quotas for Claude Haiku 4.5 and not one of them is
+per-day. And "please wait" is the one remedy that does not work, because the
+quotas that are actually zero are the four per-minute ones, and all four are
+`Adjustable: True` — a request you file, not a wait.
+
+`get-service-quota` makes this worse. On a fresh account it can return the
+*default* value (5,000,000 tokens per minute) where the applied value is zero,
+so the account reads as having full headroom while every call is refused. The
+applied zero only shows up through `list-service-quotas`. An hour went into
+comparing regions on the strength of that number before noticing the two
+calls disagreed.
+
 **And the form has no address.** The error says "Fill out the Anthropic use
 case details form". The console page named after exactly that — **Model
 access**, still in the left nav, still the first search result — now renders
