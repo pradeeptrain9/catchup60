@@ -376,3 +376,50 @@ the CLI promotes, so this is on the default path for new projects.
 provider is present, or have the provider return no-credentials rather than
 raise, so a probe can treat it like any other absent provider. Mentioning the
 extra in the `aws login` output would also help.
+
+---
+
+## 12. Bedrock access has three independent gates, each reported as the same kind of error
+
+**Task:** Call an Anthropic model on Bedrock from a brand-new AWS account.
+
+**Steps:** `aws configure`, then `client.messages.create(...)` through the
+Anthropic SDK's `AnthropicBedrockMantle`. When that failed, probed the account
+directly with `aws bedrock-runtime converse` across several model IDs.
+
+**Expected:** One clear "you do not have access, do X" the first time.
+
+**What happened:** Four failures in sequence, each one revealed only after
+fixing the one before it:
+
+1. `AccessDeniedException: AWS account registration is incomplete or revoked.`
+   — the account itself was not activated. Nothing to do with Bedrock.
+2. `ValidationException: Invocation of model ID ... with on-demand throughput
+   isn't supported. Retry with inference profile ID` — `list-foundation-models`
+   reports every Anthropic model as `INFERENCE_PROFILE`-only, so the model ID
+   printed by the listing is never the ID you can call. You must look up a
+   second listing, `list-inference-profiles`, and use the `us.`/`global.`
+   prefixed ID.
+3. `AccessDeniedException: Model use case details have not been submitted for
+   this account. Fill out the Anthropic use case details form` — a console-only
+   form, with no CLI equivalent and no link in the error.
+4. For the newest models, `AccessDeniedException: anthropic.claude-opus-5 is
+   not available for this account`, while `list-foundation-models` reports that
+   same model as `ACTIVE`. "ACTIVE" describes the model's lifecycle, not your
+   access; `agreementAvailability` is the field that answers the question
+   anyone reading the listing is actually asking.
+
+The costly part is that (2) and (4) are the same exception class with messages
+that look alike, so the first instinct is to re-check credentials — which were
+fine the whole time. Polly, on the same credentials, worked immediately.
+
+**Severity:** Major. This is the first ten minutes of every new AWS account
+that wants Bedrock, and the information needed to get through it is spread
+across two listings, one console form, and four error strings.
+
+**Suggestion:** One preflight API — `GET /model-access/{modelId}` — returning
+the callable ID, whether the use-case form is on file, and whether the
+agreement is accepted, so a client can tell a developer all of it at once.
+Failing that: put the console URL in the use-case-form error, and make
+`list-foundation-models` return the inference-profile ID that actually works
+rather than an ID that is guaranteed to fail.
