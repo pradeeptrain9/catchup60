@@ -46,6 +46,36 @@ Against real games:
 viewer would have been shown at that moment. That is what makes the demo
 rehearsable and the output testable.
 
+### Game states
+
+A recap only exists once there are plays. Before first pitch the CLI says so and
+stops, rather than surfacing StatsAPI's 404 — which on a scheduled game is
+byte-identical to the one for a bad game id:
+
+```
+$ ./run recap 849831
+CWS @ CLE is scheduled — no plays yet. Try ./run games to find one in progress.
+
+$ ./run recap 12345
+no game 12345. Run ./run games to list today's gamePks.
+```
+
+The outro follows the cursor, not the game's real-world status. A replay at
+`--as-of 40` of a game that ended hours ago says "back to live", because it is
+standing in for a moment when the game was live; reading "that's your final"
+over a 4-0 score in the fifth costs the viewer's trust in everything else the
+recap said.
+
+### Caching
+
+Recaps are cached on `(gamePk, cursor, budget, audio)` — never on the clock.
+`cursor` is the current at-bat index, which arrives in that same 403-byte state
+call, so a poll landing inside an at-bat already seen is decided before the 39 KB
+play feed is touched.
+
+With audio that is 22.2s to 1.7s. `--no-cache` forces a rebuild, and
+`./run clean` drops the cache without touching `out/`.
+
 ### Narration
 
 ```bash

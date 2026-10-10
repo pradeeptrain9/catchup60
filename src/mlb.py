@@ -28,6 +28,7 @@ WP_FIELDS = ",".join([
 FEED_FIELDS = ",".join([
     "gameData", "teams", "away", "home", "abbreviation", "teamName", "id",
     "status", "detailedState", "abstractGameState",
+    "liveData", "plays", "currentPlay", "about", "atBatIndex",
 ])
 
 SCHEDULE_FIELDS = ",".join([
@@ -41,14 +42,33 @@ class FeedError(RuntimeError):
     """A StatsAPI call failed in a way the caller should surface, not retry."""
 
 
+class GameNotFound(FeedError):
+    """No such gamePk."""
+
+
+class GameNotStarted(FeedError):
+    """The game exists but has no plays yet.
+
+    Distinguished from GameNotFound because StatsAPI cannot tell them apart:
+    winProbability returns 404 "Game data couldn't be found" for a scheduled
+    game exactly as it does for a bad gamePk. The caller needs to know which,
+    since one is a bad request and the other is just "come back after the first
+    pitch".
+    """
+
+
 def _get(path: str, params: dict | None = None) -> dict | list:
     url = f"{config.STATSAPI}{path}"
     try:
         response = httpx.get(url, params=params or {}, timeout=config.HTTP_TIMEOUT)
+        if response.status_code == 404:
+            raise GameNotFound(f"StatsAPI has no data for {path}")
         response.raise_for_status()
         return response.json()
     except httpx.HTTPError as exc:
-        raise FeedError(f"{url} failed: {exc}") from exc
+        # The raw httpx message carries the whole URL-encoded query string,
+        # which is unreadable in a terminal and useless in an app.
+        raise FeedError(f"{path} failed: {type(exc).__name__}") from exc
 
 
 def schedule(date: str | None = None, start: str | None = None,
@@ -84,7 +104,19 @@ def context(game_pk: int) -> GameContext:
     data = payload.get("gameData", {})
     teams = data.get("teams", {})
     away, home = teams.get("away", {}), teams.get("home", {})
+
+    # A gamePk that does not exist answers 200, not 404: gameData comes back
+    # fully populated with abstractGameState "Other", detailedState "Unknown"
+    # and team ids of 0. Without this check the caller is handed a context of
+    # placeholders and reports "AWY @ HOM is unknown — no plays yet", which
+    # sends someone hunting for a game problem instead of a typo.
+    if not away.get("id") and not home.get("id"):
+        raise GameNotFound(f"StatsAPI has no game {game_pk}")
     status = data.get("status", {})
+    current = (
+        payload.get("liveData", {}).get("plays", {}).get("currentPlay", {})
+    )
+    cursor = current.get("about", {}).get("atBatIndex", current.get("atBatIndex"))
     return GameContext(
         game_pk=game_pk,
         away_abbr=away.get("abbreviation", "AWY"),
@@ -93,6 +125,7 @@ def context(game_pk: int) -> GameContext:
         home_name=home.get("teamName", "Home"),
         detailed_state=status.get("detailedState", "Unknown"),
         abstract_state=status.get("abstractGameState", "Unknown"),
+        cursor=cursor,
     )
 
 
@@ -132,6 +165,11 @@ def parse_plays(raw: list[dict]) -> list[Play]:
 
 
 def win_probability(game_pk: int) -> list[Play]:
+    """Scored plays for a game.
+
+    Callers should check `context().has_started` first: this endpoint 404s on a
+    scheduled game, and the message does not say why.
+    """
     raw = _get(f"/api/v1/game/{game_pk}/winProbability", {"fields": WP_FIELDS})
     if not isinstance(raw, list):
         raise FeedError(f"winProbability for {game_pk} was not a list")

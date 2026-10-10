@@ -11,7 +11,7 @@ import sys
 from datetime import date
 
 from . import config, fixtures, recap
-from .mlb import FeedError
+from .mlb import FeedError, GameNotFound, GameNotStarted
 
 
 def _synth_for(args, label: str):
@@ -123,7 +123,13 @@ def cmd_recap(args) -> int:
     try:
         manifest = recap.from_api(args.game_pk, as_of=args.as_of,
                                   total_seconds=args.seconds,
-                                  synth=_synth_for(args, label))
+                                  synth=_synth_for(args, label),
+                                  use_cache=not args.no_cache)
+    except GameNotStarted as exc:
+        raise SystemExit(f"{exc}. Try ./run games to find one in progress.")
+    except GameNotFound:
+        raise SystemExit(
+            f"no game {args.game_pk}. Run ./run games to list today's gamePks.")
     except FeedError as exc:
         raise SystemExit(f"could not load game {args.game_pk}: {exc}")
     except ValueError as exc:
@@ -142,7 +148,8 @@ def cmd_synthetic(args) -> int:
 
 def cmd_clean(args) -> int:
     """Drop intermediates. Never touches out/."""
-    for target in (config.WORK,):
+    from . import cache as recap_cache
+    for target in (config.WORK, recap_cache.DIR):
         if target.exists():
             shutil.rmtree(target)
             print(f"removed {target}")
@@ -176,6 +183,8 @@ def build_parser() -> argparse.ArgumentParser:
                             help="print a human-readable breakdown to stderr")
         target.add_argument("--audio", action="store_true",
                             help="synthesize narration; timings become real")
+        target.add_argument("--no-cache", action="store_true", dest="no_cache",
+                            help="rebuild even if this at-bat is cached")
 
     live = sub.add_parser("recap", help="recap a real game by gamePk")
     live.add_argument("game_pk", type=int)

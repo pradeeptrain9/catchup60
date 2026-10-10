@@ -119,3 +119,73 @@ business details of unstated duration, the track read as too risky for a
 **Suggestion:** Add the sandbox to the Requirements section as the no-hardware
 path, and publish the expected turnaround for developer registration. Both facts
 are what someone deciding between tracks actually needs.
+
+---
+
+## 5. `winProbability` 404s on a scheduled game, with a message that reads like a bad id
+
+**Task:** Handle a viewer opening the app before first pitch.
+
+**Steps:** `GET /api/v1/game/849831/winProbability` on a game in `Scheduled`
+state.
+
+**Expected:** `200` with an empty array. There are no plays yet; that is a
+normal, expected state, not an error.
+
+**What happened:** `404` with
+
+> ```
+> {"messageNumber":2,"message":"Game data couldn't be found",...}
+> ```
+
+which is byte-for-byte what a nonexistent gamePk returns. So the two cases a
+client most needs to tell apart — "come back after the first pitch" and "your
+game id is wrong" — are indistinguishable from the response.
+
+**Severity:** Important. Pregame is not an edge case; it is the state every game
+is in for most of the day, and a naive client shows an error screen during it.
+
+**Workaround:** Ask the cheap `feed/live` endpoint first (403 bytes with
+`fields`) and branch on `abstractGameState` before touching the play feed. That
+turned out to be the right shape anyway — the same call carries the current
+at-bat index, which became the cache key.
+
+**Suggestion:** Return `200` with `[]` for a game that exists but has no plays.
+Failing that, use a distinct `messageNumber` for "game exists, no data yet", so
+clients can tell the two apart without a second request.
+
+---
+
+## 6. A nonexistent gamePk returns `200` with fully populated placeholder data
+
+**Task:** Validate a gamePk before building a recap.
+
+**Steps:** `GET /api/v1.1/game/12345/feed/live`.
+
+**Expected:** `404`.
+
+**What happened:** `200`, with `gameData` populated well enough to look real:
+
+> ```
+> "status": {"abstractGameState": "Other", "detailedState": "Unknown",
+>            "codedGameState": "X", "statusCode": "X"}
+> "teams": {"away": {"id": 0, "link": "/api/v1/teams/0"},
+>           "home": {"id": 0, "link": "/api/v1/teams/0"}}
+> ```
+
+`gameData` also carries `game`, `datetime`, `players`, `weather`, `gameInfo`,
+`flags`, `alerts` and `probablePitchers` keys, so an emptiness check on
+`gameData` does not catch it. Our first attempt at a guard checked exactly that
+and let the placeholder through — the CLI reported "AWY @ HOM is unknown — no
+plays yet", sending the reader hunting for a game-state problem instead of a
+typo.
+
+The only unambiguous sentinel is `teams.away.id == 0`.
+
+**Severity:** Minor, but the failure is misleading rather than loud, which is
+the expensive kind.
+
+**Workaround:** Treat a team id of `0` as "no such game".
+
+**Suggestion:** Return `404` for an unknown gamePk. If the `200` is load-bearing
+for some other consumer, document `codedGameState: "X"` as the sentinel.

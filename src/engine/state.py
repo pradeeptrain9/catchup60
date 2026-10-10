@@ -69,10 +69,18 @@ class GameContext:
     home_name: str
     detailed_state: str
     abstract_state: str  # "Preview" | "Live" | "Final"
+    # atBatIndex of the current play, from the cheap feed call. None before the
+    # first pitch. Used to poll a live game without pulling the 39 KB
+    # win-probability payload on every tick.
+    cursor: int | None = None
 
     @property
     def is_live(self) -> bool:
         return self.abstract_state == "Live"
+
+    @property
+    def has_started(self) -> bool:
+        return self.abstract_state in {"Live", "Final"}
 
 
 def ordinal(n: int) -> str:

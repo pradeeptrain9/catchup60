@@ -59,15 +59,28 @@ def play_text(play: Play) -> str:
     return f"{half_phrase(play)}. {clean_description(play.description)}"
 
 
-def outro_text(context: GameContext, state: GameState) -> str:
-    return (
-        f"That's how it got to {context.away_name} {state.away_score}, "
-        f"{context.home_name} {state.home_score}. Back to live."
+def outro_text(context: GameContext, state: GameState,
+               finished: bool = False) -> str:
+    """Close on the score, and hand off to wherever the viewer is going.
+
+    `finished` is about the cursor, not about the game. A replay at --as-of 40
+    of a game that ended hours ago is standing in for a moment when the game
+    was live, so it says "back to live" — reading "that's your final" over a
+    4-0 score in the fifth is the kind of wrongness that costs the viewer's
+    trust in everything else the recap said.
+    """
+    score = (
+        f"{context.away_name} {state.away_score}, "
+        f"{context.home_name} {state.home_score}"
     )
+    if finished:
+        return f"That's your final: {score}."
+    return f"That's how it got to {score}. Back to live."
 
 
 def build_segments(
-    context: GameContext, state: GameState, plays: list[Play]
+    context: GameContext, state: GameState, plays: list[Play],
+    finished: bool = False,
 ) -> list[dict]:
     """Narration segments in play order, intro first, outro last.
 
@@ -82,5 +95,7 @@ def build_segments(
             "text": play_text(play),
             "playIndex": play.index,
         })
-    segments.append({"kind": "outro", "text": outro_text(context, state)})
+    segments.append(
+        {"kind": "outro", "text": outro_text(context, state, finished)}
+    )
     return segments
