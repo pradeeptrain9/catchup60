@@ -23,6 +23,11 @@ PAYLOAD = {
 }
 
 
+# Captured before the autouse fixture below stubs it out: the region tests at
+# the bottom of this file exercise the real constructor, not the stub.
+REAL_CLIENT = bedrock._client
+
+
 @pytest.fixture(autouse=True)
 def pretend_available(monkeypatch):
     monkeypatch.setattr(bedrock, "available", lambda: (True, ""))
@@ -203,3 +208,54 @@ class TestAvailabilityNeverRaises:
         monkeypatch.setattr(bedrock, "_client", explode)
         _, reason = bedrock.rephrase(SEGMENTS, PAYLOAD)
         assert "not available" in reason
+
+
+class TestRegionResolution:
+    """The probe and the client must agree on where the region comes from.
+
+    `aws configure set region` writes ~/.aws/config. boto3 reads it; the
+    Anthropic SDK does not. While _client() consulted only AWS_REGION, every
+    machine configured that normal way passed the availability probe and then
+    failed construction with "No AWS region or base URL found".
+    """
+
+    def test_falls_back_to_the_session_region_when_the_env_is_empty(
+            self, monkeypatch):
+        import boto3
+
+        monkeypatch.delenv("AWS_REGION", raising=False)
+        monkeypatch.delenv("AWS_DEFAULT_REGION", raising=False)
+
+        class Configured:
+            region_name = "us-east-1"
+
+        monkeypatch.setattr(boto3, "Session", lambda: Configured())
+        assert bedrock._region() == "us-east-1"
+
+    def test_the_environment_wins_when_both_are_set(self, monkeypatch):
+        import boto3
+
+        monkeypatch.setenv("AWS_REGION", "eu-west-1")
+        monkeypatch.setattr(
+            boto3, "Session", lambda: type("S", (), {"region_name": "us-east-1"})()
+        )
+        assert bedrock._region() == "eu-west-1"
+
+    def test_no_region_anywhere_is_none_not_an_exception(self, monkeypatch):
+        import boto3
+
+        monkeypatch.delenv("AWS_REGION", raising=False)
+        monkeypatch.delenv("AWS_DEFAULT_REGION", raising=False)
+
+        def explode():
+            raise RuntimeError("no config")
+
+        monkeypatch.setattr(boto3, "Session", explode)
+        assert bedrock._region() is None
+
+    def test_the_client_refuses_with_a_fix_rather_than_an_sdk_error(
+            self, monkeypatch):
+        """The SDK's own message names four env vars and no remedy."""
+        monkeypatch.setattr(bedrock, "_region", lambda: None)
+        with pytest.raises(RuntimeError, match="aws configure set region"):
+            REAL_CLIENT()

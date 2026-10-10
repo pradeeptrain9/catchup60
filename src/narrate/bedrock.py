@@ -67,9 +67,7 @@ def _aws_ready() -> tuple[bool, str]:
     if credentials is None:
         return False, "no AWS credentials — aws login, or aws configure"
 
-    import os
-    if not (session.region_name or os.environ.get("AWS_REGION")
-            or os.environ.get("AWS_DEFAULT_REGION")):
+    if not _region():
         return False, "no AWS region — aws configure set region us-east-1"
     return True, ""
 
@@ -88,11 +86,33 @@ def available() -> tuple[bool, str]:
     return _aws_ready()
 
 
+def _region() -> str | None:
+    """The region boto3 would use, not merely the one in the environment.
+
+    `aws configure set region` writes ~/.aws/config, which boto3 reads and the
+    Anthropic SDK does not. Looking only at AWS_REGION meant the availability
+    probe passed — it asks boto3 — and the client constructor then failed with
+    "No AWS region or base URL found". Both must agree on where region comes
+    from, and boto3's resolution is the one the rest of the AWS path uses.
+    """
+    env = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+    if env:
+        return env
+    try:
+        import boto3
+        return boto3.Session().region_name
+    except Exception:
+        return None
+
+
 def _client():
     from anthropic import AnthropicBedrockMantle
-    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
-    return AnthropicBedrockMantle(aws_region=region) if region \
-        else AnthropicBedrockMantle()
+    region = _region()
+    if not region:
+        raise RuntimeError(
+            "no AWS region — aws configure set region us-east-1"
+        )
+    return AnthropicBedrockMantle(aws_region=region)
 
 
 def _ask(client, messages: list[dict]) -> list[str]:
