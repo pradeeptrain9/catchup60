@@ -1,0 +1,875 @@
+{
+ "context": {
+  "gamePk": 999001,
+  "away": {
+   "abbreviation": "HBG",
+   "teamName": "Harbor Gulls"
+  },
+  "home": {
+   "abbreviation": "CDF",
+   "teamName": "Cedar Foxes"
+  },
+  "detailedState": "In Progress",
+  "abstractGameState": "Live"
+ },
+ "winProbability": [
+  {
+   "atBatIndex": 0,
+   "result": {
+    "type": "atBat",
+    "event": "Strikeout",
+    "description": "Delgado Rivas called out on strikes.",
+    "rbi": 0,
+    "awayScore": 0,
+    "homeScore": 0
+   },
+   "about": {
+    "atBatIndex": 0,
+    "inning": 1,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": false,
+    "captivatingIndex": 4
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Delgado Rivas"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 48.8,
+   "awayTeamWinProbability": 51.2,
+   "homeTeamWinProbabilityAdded": -1.2
+  },
+  {
+   "atBatIndex": 1,
+   "result": {
+    "type": "atBat",
+    "event": "Double",
+    "description": "Priya Mahal doubles on a line drive to left field.",
+    "rbi": 0,
+    "awayScore": 0,
+    "homeScore": 0
+   },
+   "about": {
+    "atBatIndex": 1,
+    "inning": 1,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": false,
+    "captivatingIndex": 16
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Priya Mahal"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 52.9,
+   "awayTeamWinProbability": 47.1,
+   "homeTeamWinProbabilityAdded": 4.1
+  },
+  {
+   "atBatIndex": 2,
+   "result": {
+    "type": "atBat",
+    "event": "Single",
+    "description": "Oskar Lindqvist singles on a ground ball to center field. Priya Mahal scores.",
+    "rbi": 1,
+    "awayScore": 1,
+    "homeScore": 0
+   },
+   "about": {
+    "atBatIndex": 2,
+    "inning": 1,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": true,
+    "captivatingIndex": 27
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Oskar Lindqvist"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 59.7,
+   "awayTeamWinProbability": 40.3,
+   "homeTeamWinProbabilityAdded": 6.8
+  },
+  {
+   "atBatIndex": 3,
+   "result": {
+    "type": "atBat",
+    "event": "Groundout",
+    "description": "Tomas Quill grounds out, shortstop to first baseman.",
+    "rbi": 0,
+    "awayScore": 1,
+    "homeScore": 0
+   },
+   "about": {
+    "atBatIndex": 3,
+    "inning": 1,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": false,
+    "captivatingIndex": 7
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Tomas Quill"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 61.6,
+   "awayTeamWinProbability": 38.4,
+   "homeTeamWinProbabilityAdded": 1.9
+  },
+  {
+   "atBatIndex": 4,
+   "result": {
+    "type": "atBat",
+    "event": "Home Run",
+    "description": "Ada Boateng homers (14) on a fly ball to right field.",
+    "rbi": 1,
+    "awayScore": 1,
+    "homeScore": 1
+   },
+   "about": {
+    "atBatIndex": 4,
+    "inning": 1,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": true,
+    "captivatingIndex": 37
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Ada Boateng"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 71.0,
+   "awayTeamWinProbability": 29.0,
+   "homeTeamWinProbabilityAdded": 9.4
+  },
+  {
+   "atBatIndex": 5,
+   "result": {
+    "type": "atBat",
+    "event": "Flyout",
+    "description": "Nils Ahlberg flies out to center fielder Ada Boateng.",
+    "rbi": 0,
+    "awayScore": 1,
+    "homeScore": 1
+   },
+   "about": {
+    "atBatIndex": 5,
+    "inning": 2,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": false,
+    "captivatingIndex": 4
+   },
+   "count": {
+    "outs": 2
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Nils Ahlberg"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 69.9,
+   "awayTeamWinProbability": 30.1,
+   "homeTeamWinProbabilityAdded": -1.1
+  },
+  {
+   "atBatIndex": 6,
+   "result": {
+    "type": "atBat",
+    "event": "Strikeout",
+    "description": "Mirembe Okoth strikes out swinging.",
+    "rbi": 0,
+    "awayScore": 1,
+    "homeScore": 1
+   },
+   "about": {
+    "atBatIndex": 6,
+    "inning": 2,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": false,
+    "captivatingIndex": 8
+   },
+   "count": {
+    "outs": 3
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Mirembe Okoth"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 72.1,
+   "awayTeamWinProbability": 27.9,
+   "homeTeamWinProbabilityAdded": 2.2
+  },
+  {
+   "atBatIndex": 7,
+   "result": {
+    "type": "atBat",
+    "event": "Triple",
+    "description": "Priya Mahal triples (3) on a line drive to right field. Delgado Rivas scores.",
+    "rbi": 1,
+    "awayScore": 2,
+    "homeScore": 1
+   },
+   "about": {
+    "atBatIndex": 7,
+    "inning": 3,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": true,
+    "captivatingIndex": 30
+   },
+   "count": {
+    "outs": 0
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Priya Mahal"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 79.7,
+   "awayTeamWinProbability": 20.3,
+   "homeTeamWinProbabilityAdded": 7.6
+  },
+  {
+   "atBatIndex": 8,
+   "result": {
+    "type": "atBat",
+    "event": "Sac Fly",
+    "description": "Oskar Lindqvist out on a sacrifice fly to center fielder. Priya Mahal scores.",
+    "rbi": 1,
+    "awayScore": 3,
+    "homeScore": 1
+   },
+   "about": {
+    "atBatIndex": 8,
+    "inning": 3,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": true,
+    "captivatingIndex": 9
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Oskar Lindqvist"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 82.1,
+   "awayTeamWinProbability": 17.9,
+   "homeTeamWinProbabilityAdded": 2.4
+  },
+  {
+   "atBatIndex": 9,
+   "result": {
+    "type": "atBat",
+    "event": "Groundout",
+    "description": "Tomas Quill grounds out to first baseman.",
+    "rbi": 0,
+    "awayScore": 3,
+    "homeScore": 1
+   },
+   "about": {
+    "atBatIndex": 9,
+    "inning": 3,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": false,
+    "captivatingIndex": 5
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Tomas Quill"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 83.5,
+   "awayTeamWinProbability": 16.5,
+   "homeTeamWinProbabilityAdded": 1.4
+  },
+  {
+   "atBatIndex": 10,
+   "result": {
+    "type": "atBat",
+    "event": "Walk",
+    "description": "Nils Ahlberg walks.",
+    "rbi": 0,
+    "awayScore": 3,
+    "homeScore": 1
+   },
+   "about": {
+    "atBatIndex": 10,
+    "inning": 4,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": false,
+    "captivatingIndex": 7
+   },
+   "count": {
+    "outs": 0
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Nils Ahlberg"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 85.3,
+   "awayTeamWinProbability": 14.7,
+   "homeTeamWinProbabilityAdded": 1.8
+  },
+  {
+   "atBatIndex": 11,
+   "result": {
+    "type": "atBat",
+    "event": "Double",
+    "description": "Ada Boateng doubles on a ground ball to left field.",
+    "rbi": 0,
+    "awayScore": 3,
+    "homeScore": 1
+   },
+   "about": {
+    "atBatIndex": 11,
+    "inning": 4,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": false,
+    "captivatingIndex": 14
+   },
+   "count": {
+    "outs": 0
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Ada Boateng"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 89.0,
+   "awayTeamWinProbability": 11.0,
+   "homeTeamWinProbabilityAdded": 3.7
+  },
+  {
+   "atBatIndex": 12,
+   "result": {
+    "type": "atBat",
+    "event": "Single",
+    "description": "Mirembe Okoth singles on a line drive to right field. Ada Boateng scores.",
+    "rbi": 1,
+    "awayScore": 3,
+    "homeScore": 2
+   },
+   "about": {
+    "atBatIndex": 12,
+    "inning": 4,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": true,
+    "captivatingIndex": 23
+   },
+   "count": {
+    "outs": 0
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Mirembe Okoth"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 94.9,
+   "awayTeamWinProbability": 5.1,
+   "homeTeamWinProbabilityAdded": 5.9
+  },
+  {
+   "atBatIndex": 13,
+   "result": {
+    "type": "atBat",
+    "event": "Strikeout",
+    "description": "Delgado Rivas strikes out swinging.",
+    "rbi": 0,
+    "awayScore": 3,
+    "homeScore": 2
+   },
+   "about": {
+    "atBatIndex": 13,
+    "inning": 5,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": false,
+    "captivatingIndex": 10
+   },
+   "count": {
+    "outs": 2
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Delgado Rivas"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 92.3,
+   "awayTeamWinProbability": 7.7,
+   "homeTeamWinProbabilityAdded": -2.6
+  },
+  {
+   "atBatIndex": 14,
+   "result": {
+    "type": "atBat",
+    "event": "Home Run",
+    "description": "Tomas Quill homers (22) on a fly ball to left center field. Mirembe Okoth scores.",
+    "rbi": 2,
+    "awayScore": 3,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 14,
+    "inning": 5,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": true,
+    "captivatingIndex": 55
+   },
+   "count": {
+    "outs": 0
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Tomas Quill"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 99.9,
+   "awayTeamWinProbability": 0.1,
+   "homeTeamWinProbabilityAdded": 13.8
+  },
+  {
+   "atBatIndex": 15,
+   "result": {
+    "type": "atBat",
+    "event": "Groundout",
+    "description": "Priya Mahal grounds out, second baseman to first baseman.",
+    "rbi": 0,
+    "awayScore": 3,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 15,
+    "inning": 6,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": false,
+    "captivatingIndex": 8
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Priya Mahal"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 97.8,
+   "awayTeamWinProbability": 2.2,
+   "homeTeamWinProbabilityAdded": -2.1
+  },
+  {
+   "atBatIndex": 16,
+   "result": {
+    "type": "atBat",
+    "event": "Flyout",
+    "description": "Ada Boateng flies out to right fielder Nils Ahlberg.",
+    "rbi": 0,
+    "awayScore": 3,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 16,
+    "inning": 6,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": false,
+    "captivatingIndex": 6
+   },
+   "count": {
+    "outs": 2
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Ada Boateng"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 96.1,
+   "awayTeamWinProbability": 3.9,
+   "homeTeamWinProbabilityAdded": -1.7
+  },
+  {
+   "atBatIndex": 17,
+   "result": {
+    "type": "atBat",
+    "event": "Single",
+    "description": "Oskar Lindqvist singles on a ground ball to left field.",
+    "rbi": 0,
+    "awayScore": 3,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 17,
+    "inning": 7,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": false,
+    "captivatingIndex": 12
+   },
+   "count": {
+    "outs": 0
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Oskar Lindqvist"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 99.3,
+   "awayTeamWinProbability": 0.7,
+   "homeTeamWinProbabilityAdded": 3.2
+  },
+  {
+   "atBatIndex": 18,
+   "result": {
+    "type": "atBat",
+    "event": "Home Run",
+    "description": "Nils Ahlberg homers (9) on a fly ball to right field. Oskar Lindqvist scores.",
+    "rbi": 2,
+    "awayScore": 5,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 18,
+    "inning": 7,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": true,
+    "captivatingIndex": 65
+   },
+   "count": {
+    "outs": 0
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Nils Ahlberg"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 99.9,
+   "awayTeamWinProbability": 0.1,
+   "homeTeamWinProbabilityAdded": 16.4
+  },
+  {
+   "atBatIndex": 19,
+   "result": {
+    "type": "atBat",
+    "event": "Strikeout",
+    "description": "Mirembe Okoth strikes out looking.",
+    "rbi": 0,
+    "awayScore": 5,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 19,
+    "inning": 7,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": false,
+    "captivatingIndex": 15
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Mirembe Okoth"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 96.1,
+   "awayTeamWinProbability": 3.9,
+   "homeTeamWinProbabilityAdded": -3.8
+  },
+  {
+   "atBatIndex": 20,
+   "result": {
+    "type": "atBat",
+    "event": "Groundout",
+    "description": "Delgado Rivas grounds out to shortstop.",
+    "rbi": 0,
+    "awayScore": 5,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 20,
+    "inning": 8,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": false,
+    "captivatingIndex": 5
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Delgado Rivas"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 94.8,
+   "awayTeamWinProbability": 5.2,
+   "homeTeamWinProbabilityAdded": -1.3
+  },
+  {
+   "atBatIndex": 21,
+   "result": {
+    "type": "atBat",
+    "event": "Double",
+    "description": "Tomas Quill doubles on a line drive to center field.",
+    "rbi": 0,
+    "awayScore": 5,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 21,
+    "inning": 8,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": false,
+    "captivatingIndex": 20
+   },
+   "count": {
+    "outs": 1
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Tomas Quill"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 99.9,
+   "awayTeamWinProbability": 0.1,
+   "homeTeamWinProbabilityAdded": 5.1
+  },
+  {
+   "atBatIndex": 22,
+   "result": {
+    "type": "atBat",
+    "event": "Groundout",
+    "description": "Ada Boateng grounds out, pitcher to first baseman.",
+    "rbi": 0,
+    "awayScore": 5,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 22,
+    "inning": 8,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": false,
+    "captivatingIndex": 24
+   },
+   "count": {
+    "outs": 2
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Ada Boateng"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 93.7,
+   "awayTeamWinProbability": 6.3,
+   "homeTeamWinProbabilityAdded": -6.2
+  },
+  {
+   "atBatIndex": 23,
+   "result": {
+    "type": "atBat",
+    "event": "Strikeout",
+    "description": "Priya Mahal strikes out swinging.",
+    "rbi": 0,
+    "awayScore": 5,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 23,
+    "inning": 9,
+    "halfInning": "top",
+    "isTopInning": true,
+    "isScoringPlay": false,
+    "captivatingIndex": 5
+   },
+   "count": {
+    "outs": 2
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Priya Mahal"
+    },
+    "pitcher": {
+     "fullName": "Ren Takahashi"
+    }
+   },
+   "homeTeamWinProbability": 92.3,
+   "awayTeamWinProbability": 7.7,
+   "homeTeamWinProbabilityAdded": -1.4
+  },
+  {
+   "atBatIndex": 24,
+   "result": {
+    "type": "atBat",
+    "event": "Single",
+    "description": "Mirembe Okoth singles on a ground ball to right field.",
+    "rbi": 0,
+    "awayScore": 5,
+    "homeScore": 4
+   },
+   "about": {
+    "atBatIndex": 24,
+    "inning": 9,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": false,
+    "captivatingIndex": 18
+   },
+   "count": {
+    "outs": 0
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Mirembe Okoth"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 96.9,
+   "awayTeamWinProbability": 3.1,
+   "homeTeamWinProbabilityAdded": 4.6
+  },
+  {
+   "atBatIndex": 25,
+   "result": {
+    "type": "atBat",
+    "event": "Home Run",
+    "description": "Tomas Quill homers (23) on a fly ball to left field. Mirembe Okoth scores.",
+    "rbi": 2,
+    "awayScore": 5,
+    "homeScore": 6
+   },
+   "about": {
+    "atBatIndex": 25,
+    "inning": 9,
+    "halfInning": "bottom",
+    "isTopInning": false,
+    "isScoringPlay": true,
+    "captivatingIndex": 86
+   },
+   "count": {
+    "outs": 0
+   },
+   "matchup": {
+    "batter": {
+     "fullName": "Tomas Quill"
+    },
+    "pitcher": {
+     "fullName": "Cal Mwangi"
+    }
+   },
+   "homeTeamWinProbability": 99.9,
+   "awayTeamWinProbability": 0.1,
+   "homeTeamWinProbabilityAdded": 21.7
+  }
+ ]
+}
