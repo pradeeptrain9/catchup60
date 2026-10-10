@@ -177,6 +177,23 @@ vega run-app build/aarch64-debug/catchup60_aarch64.vpkg \
 Use the `aarch64` build on an M-series Mac and `x86_64` on Intel; `armv7` is
 the Fire TV Stick. The app needs `./run serve` running on the host.
 
+The app asks the backend what is worth recapping rather than deciding itself:
+
+```bash
+curl -s localhost:8080/playable
+```
+
+Live games first, then finished ones, then scheduled ones shown but not
+offered, then the offline fixture last. On a postseason off-day it walks back up
+to three days for a finished game, so the screen is never empty. A schedule
+outage still leaves the fixture playable.
+
+Front-end tests run headlessly, including the card-advance clock:
+
+```bash
+cd tv && npx jest
+```
+
 ### Three things the Vega Virtual Device taught us
 
 **The host is at `10.0.2.2`.** Not `localhost` — the device has its own network

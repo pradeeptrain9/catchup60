@@ -17,7 +17,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import cache, config, fixtures, mlb, recap
+from . import cache, catalog, config, fixtures, mlb, recap
 
 
 CERT_DIR = config.CACHE / "certs"
@@ -102,7 +102,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/":
                 return self._json(200, {
                     "service": "catchup60",
-                    "routes": ["/games", "/recap/{gamePk}", "/recap/synthetic",
+                    "routes": ["/playable", "/games", "/recap/{gamePk}",
+                               "/recap/synthetic",
                                "/audio/{label}/narration.mp3", "/log?m="],
                 })
             if route == "/log":
@@ -117,6 +118,11 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/games":
                 return self._json(200, mlb.schedule(
                     date=query.get("date", [None])[0]))
+            if route == "/playable":
+                # The app asks what it can recap and gets an ordered answer:
+                # live games first, then finished ones, then the fixture.
+                return self._json(200, catalog.playable(
+                    today=query.get("date", [None])[0]))
             if route.startswith("/recap/"):
                 return self._recap(route.removeprefix("/recap/"), query)
             if route.startswith("/audio/"):
