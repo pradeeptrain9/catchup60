@@ -2,4 +2,6 @@
 # Separate from requirements.txt so the engine, the manifest and the local
 # Kokoro voice all work with no AWS account and no credentials.
 anthropic==1.13.0
-boto3==1.43.111
+# The [crt] extra is not optional in practice: credentials from `aws login`
+# come through a provider that raises MissingDependencyException without it.
+boto3[crt]==1.43.111

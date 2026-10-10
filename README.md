@@ -230,8 +230,27 @@ are unavailable — `./run doctor` lists them as `opt`, not missing.
 
 ```bash
 pip install -r requirements-aws.txt
-export AWS_REGION=us-east-1          # or whichever region you use
-aws configure                        # or set AWS_PROFILE
+aws login                            # or aws configure
+aws configure set region us-east-1
+```
+
+Then accept the model's agreement, which is separate from having an account and
+is the step that is easy to miss — `list-foundation-models` happily lists models
+you cannot invoke, and invoking one returns a 403 reading
+`anthropic.claude-opus-5 is not available for this account`:
+
+```bash
+aws bedrock get-foundation-model-availability --model-id anthropic.claude-opus-5
+```
+
+`agreementAvailability: NOT_AVAILABLE` alongside `authorizationStatus:
+AUTHORIZED` means exactly that gap. Accept it in the Bedrock console under
+*Model access*, or:
+
+```bash
+aws bedrock create-foundation-model-agreement --model-id anthropic.claude-opus-5 \
+  --offer-token "$(aws bedrock list-foundation-model-agreement-offers \
+    --model-id anthropic.claude-opus-5 --query 'offers[0].offerToken' --output text)"
 ```
 
 ```bash

@@ -294,3 +294,85 @@ by HTTP GET to the development server, which always arrives.
 **Suggestion:** If JS console output is sampled or rate-limited, say so in the
 docs. An unreliable log is worse than no log, because the absence of a line
 reads as the absence of the event.
+
+---
+
+## 10. Bedrock lists models you cannot invoke, and the 403 does not name the fix
+
+**Task:** Call Claude on Bedrock from a fresh AWS account.
+
+**Steps:** `aws bedrock list-foundation-models --by-provider anthropic`, pick
+`anthropic.claude-opus-5` (listed, `modelLifecycle.status: ACTIVE`), invoke it.
+
+**Expected:** Either a working call, or a listing that does not include models
+this account cannot use.
+
+**What happened:** The model is listed and ACTIVE, and the call returns 403:
+
+> `anthropic.claude-opus-5 is not available for this account. You can explore
+> other available models on Amazon Bedrock. For additional access options,
+> contact AWS Sales`
+
+That message reads like an entitlement or sales problem. It is neither. The real
+state is visible only from a different API:
+
+> ```
+> authorizationStatus:     AUTHORIZED
+> entitlementAvailability: AVAILABLE
+> regionAvailability:      AVAILABLE
+> agreementAvailability:   NOT_AVAILABLE   <- the only gap
+> ```
+
+The missing step is accepting the model's end-user agreement. Three of the four
+fields say yes, the error message mentions none of them, and the pointer to AWS
+Sales actively suggests the account needs something bought.
+
+**Severity:** Important. Every first Bedrock call from a new account hits this,
+and the error sends people to the wrong place — we went looking at credentials
+and IAM first.
+
+**Workaround:**
+
+```bash
+aws bedrock create-foundation-model-agreement --model-id anthropic.claude-opus-5 \
+  --offer-token "$(aws bedrock list-foundation-model-agreement-offers \
+    --model-id anthropic.claude-opus-5 --query 'offers[0].offerToken' --output text)"
+```
+
+**Suggestion:** Put the cause in the error: "the end-user agreement for this
+model has not been accepted for this account — accept it in Model access, or
+call CreateFoundationModelAgreement". One sentence replaces a half-hour. Better
+still, mark agreement status in `list-foundation-models`, so a listing reflects
+what is callable.
+
+---
+
+## 11. `aws login` credentials are unreadable by boto3 without an undeclared extra
+
+**Task:** Use the credentials `aws login` just wrote, from Python.
+
+**Steps:** `aws login` (which the CLI itself recommends over static keys),
+then `boto3.Session().get_credentials()`.
+
+**Expected:** Credentials, or `None`.
+
+**What happened:** It **raises**:
+
+> `botocore.exceptions.MissingDependencyException: Using the login credential
+> provider requires an additional dependency. You will need to pip install
+> "botocore[crt]" before proceeding.`
+
+The message names the fix, which is good. The problem is the shape: a plain
+`pip install boto3` cannot read credentials from the CLI's own recommended
+sign-in flow, and the failure is an exception from a getter rather than a
+missing-credentials return. Our availability probe called that getter to decide
+whether to use AWS or fall back to the local path, so a credential *check* took
+down the command it was protecting.
+
+**Severity:** Minor in isolation, important in aggregate — `aws login` is what
+the CLI promotes, so this is on the default path for new projects.
+
+**Suggestion:** Either make `boto3` depend on the CRT extra when the login
+provider is present, or have the provider return no-credentials rather than
+raise, so a probe can treat it like any other absent provider. Mentioning the
+extra in the `aws login` output would also help.

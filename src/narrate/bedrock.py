@@ -44,27 +44,48 @@ Return only JSON, in this exact shape, with no commentary:
 """
 
 
+def _aws_ready() -> tuple[bool, str]:
+    """Whether boto3 can see usable credentials and a region.
+
+    Wrapped because credential resolution *raises* rather than returning None
+    in real configurations — `aws login` sessions need botocore[crt], and
+    without it get_credentials() throws MissingDependencyException. An
+    availability probe that can raise defeats its own purpose: this is the
+    function every caller trusts to tell them whether to fall back.
+    """
+    try:
+        import boto3
+    except ImportError:
+        return False, "boto3 not installed — pip install -r requirements-aws.txt"
+
+    try:
+        session = boto3.Session()
+        credentials = session.get_credentials()
+    except Exception as exc:
+        return False, f"AWS credentials unusable: {type(exc).__name__}: {exc}"
+
+    if credentials is None:
+        return False, "no AWS credentials — aws login, or aws configure"
+
+    import os
+    if not (session.region_name or os.environ.get("AWS_REGION")
+            or os.environ.get("AWS_DEFAULT_REGION")):
+        return False, "no AWS region — aws configure set region us-east-1"
+    return True, ""
+
+
 def available() -> tuple[bool, str]:
     """Whether a Bedrock call could succeed, and if not, why.
 
-    Credentials are not verified here — that costs a network round trip, and a
-    recap must never block on one. A failure at call time falls back to the
-    template narrator like any other rejection.
+    Credentials are not exercised against the network here — that costs a round
+    trip, and a recap must never block on one. A failure at call time falls back
+    to the template narrator like any other rejection.
     """
     try:
         import anthropic  # noqa: F401
     except ImportError:
         return False, "anthropic not installed — pip install -r requirements-aws.txt"
-    try:
-        import boto3
-    except ImportError:
-        return False, "boto3 not installed — pip install -r requirements-aws.txt"
-    session = boto3.Session()
-    if session.get_credentials() is None:
-        return False, "no AWS credentials — aws configure, or set AWS_PROFILE"
-    if not (session.region_name or os.environ.get("AWS_REGION")):
-        return False, "no AWS region — set AWS_REGION or configure a default"
-    return True, ""
+    return _aws_ready()
 
 
 def _client():
@@ -120,7 +141,10 @@ def rephrase(segments: list[dict], payload: dict) -> tuple[list[dict], str | Non
     try:
         client = _client()
     except Exception as exc:  # credentials, region, import — all non-fatal
-        return segments, f"bedrock client: {type(exc).__name__}"
+        # The message matters more than the type. "AnthropicError" sent a
+        # debugging session looking at credentials when the real answer was a
+        # 403 naming an ungranted model.
+        return segments, f"bedrock client: {type(exc).__name__}: {exc}"
 
     for attempt in (1, 2):
         try:

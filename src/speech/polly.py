@@ -22,15 +22,12 @@ ENGINE = os.environ.get("CATCHUP60_POLLY_ENGINE", "neural")
 
 
 def available() -> tuple[bool, str]:
-    try:
-        import boto3
-    except ImportError:
-        return False, "boto3 not installed — pip install -r requirements-aws.txt"
-    session = boto3.Session()
-    if session.get_credentials() is None:
-        return False, "no AWS credentials — aws configure, or set AWS_PROFILE"
-    if not (session.region_name or os.environ.get("AWS_REGION")):
-        return False, "no AWS region — set AWS_REGION or configure a default"
+    # Shares the credential probe with the Bedrock narrator: both need the same
+    # thing, and both must answer rather than raise.
+    from ..narrate.bedrock import _aws_ready
+    ok, reason = _aws_ready()
+    if not ok:
+        return False, reason
     from .encode import available as ffmpeg_available
     return ffmpeg_available()
 

@@ -140,3 +140,66 @@ class TestManifestHonesty:
             rephrase=lambda segments, payload: (segments, "guard rejected it"))
         assert manifest["narrationSource"] == "template"
         assert manifest["narrationFallback"] == "guard rejected it"
+
+
+class TestAvailabilityNeverRaises:
+    """The probe every caller trusts to decide whether to fall back.
+
+    Credential resolution raises in real configurations rather than returning
+    None: an `aws login` session without botocore[crt] throws
+    MissingDependencyException from inside get_credentials(). A probe that can
+    raise defeats its own purpose, and this one took down the whole CLI.
+    """
+
+    def test_survives_a_raising_credential_provider(self, monkeypatch):
+        import boto3
+
+        class Exploding:
+            def get_credentials(self):
+                raise RuntimeError("botocore[crt] missing")
+
+            region_name = "us-east-1"
+
+        monkeypatch.setattr(boto3, "Session", lambda: Exploding())
+        ok, reason = bedrock._aws_ready()
+        assert ok is False
+        assert "botocore[crt] missing" in reason
+
+    def test_survives_a_raising_session_constructor(self, monkeypatch):
+        import boto3
+
+        def explode():
+            raise RuntimeError("no config file")
+
+        monkeypatch.setattr(boto3, "Session", explode)
+        ok, reason = bedrock._aws_ready()
+        assert ok is False
+        assert "no config file" in reason
+
+    def test_reports_missing_credentials_rather_than_claiming_ready(
+            self, monkeypatch):
+        import boto3
+
+        class NoCreds:
+            def get_credentials(self):
+                return None
+
+            region_name = "us-east-1"
+
+        monkeypatch.setattr(boto3, "Session", lambda: NoCreds())
+        ok, reason = bedrock._aws_ready()
+        assert ok is False
+        assert "no AWS credentials" in reason
+
+    def test_a_call_failure_message_survives_not_just_its_type(self,
+                                                              monkeypatch):
+        """"AnthropicError" sent a debug session after credentials when the
+        real answer was a 403 naming an ungranted model."""
+        monkeypatch.setattr(bedrock, "available", lambda: (True, ""))
+
+        def explode():
+            raise RuntimeError("403 anthropic.claude-opus-5 is not available")
+
+        monkeypatch.setattr(bedrock, "_client", explode)
+        _, reason = bedrock.rephrase(SEGMENTS, PAYLOAD)
+        assert "not available" in reason
