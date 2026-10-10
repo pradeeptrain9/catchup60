@@ -18,7 +18,7 @@ DIR = config.CACHE / "recaps"
 
 
 def key(game_pk: int, cursor: int | None, total_seconds: float,
-        with_audio: bool) -> str:
+        with_audio: bool, with_model: bool = False) -> str:
     """Identity of a recap request.
 
     `cursor` is what advances: a new at-bat is a new recap, and nothing else
@@ -30,6 +30,9 @@ def key(game_pk: int, cursor: int | None, total_seconds: float,
         "cursor": cursor,
         "totalSeconds": round(float(total_seconds), 3),
         "audio": bool(with_audio),
+        # Model-reworded narration is a different artifact from the template's,
+        # so it cannot share a cache entry.
+        "model": bool(with_model),
     }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()[:16]

@@ -18,12 +18,29 @@ def _synth_for(args, label: str):
     """Build the synth callable, or None when audio was not asked for."""
     if not getattr(args, "audio", False):
         return None
+    workdir = config.WORK / label
+    if getattr(args, "voice", "kokoro") == "polly":
+        from .speech import polly
+        ok, reason = polly.available()
+        if not ok:
+            raise SystemExit(f"cannot synthesize with Polly: {reason}")
+        return recap.polly_synth(workdir, progress=True)
     from .speech import kokoro
     ok, reason = kokoro.available()
     if not ok:
         raise SystemExit(f"cannot synthesize: {reason}")
-    workdir = config.WORK / label
     return recap.kokoro_synth(workdir, progress=True)
+
+
+def _rephrase_for(args):
+    """Build the rephrase callable, or None to keep the deterministic text."""
+    if getattr(args, "narrator", "template") != "bedrock":
+        return None
+    from .narrate import bedrock
+    ok, reason = bedrock.available()
+    if not ok:
+        raise SystemExit(f"cannot use Bedrock: {reason}")
+    return recap.bedrock_rephrase()
 
 
 def cmd_doctor(args) -> int:
@@ -57,6 +74,17 @@ def cmd_doctor(args) -> int:
     from .speech import encode
     ok, reason = encode.available()
     report(ok, "ffmpeg (mp3 for Vega)", reason)
+
+    # The AWS path is optional by design: everything works without it.
+    from .narrate import bedrock
+    ok, reason = bedrock.available()
+    print(f"{'ok   ' if ok else 'opt  '} bedrock narration"
+          + (f"  ->  {reason}" if not ok else f"  ({bedrock.MODEL})"))
+
+    from .speech import polly
+    ok, reason = polly.available()
+    print(f"{'ok   ' if ok else 'opt  '} polly speech"
+          + (f"  ->  {reason}" if not ok else f"  ({polly.VOICE})"))
 
     try:
         from . import mlb
@@ -109,13 +137,17 @@ def _emit(manifest: dict, args) -> int:
             f"{engine['considered']} plays, runs "
             f"{engine['runsExplained']}/{engine['runsTotal']}, "
             f"limited by {engine['limitedBy']}, "
-            f"timings from {manifest['timingSource']}",
+            f"timings from {manifest['timingSource']}, "
+            f"words from {manifest['narrationSource']}",
             file=sys.stderr,
         )
         if manifest.get("audioUrl"):
             print(f"audio: {manifest['audioUrl']}", file=sys.stderr)
         if manifest.get("speechSkipped"):
             print(f"speech skipped: {manifest['speechSkipped']}", file=sys.stderr)
+        if manifest.get("narrationFallback"):
+            print(f"narrator fell back: {manifest['narrationFallback']}",
+                  file=sys.stderr)
         for segment in manifest["segments"]:
             print(f"  {segment['start']:6.2f} +{segment['dur']:5.2f}  "
                   f"[{segment['kind']}] {segment['text']}", file=sys.stderr)
@@ -128,6 +160,7 @@ def cmd_recap(args) -> int:
         manifest = recap.from_api(args.game_pk, as_of=args.as_of,
                                   total_seconds=args.seconds,
                                   synth=_synth_for(args, label),
+                                  rephrase=_rephrase_for(args),
                                   use_cache=not args.no_cache)
     except GameNotStarted as exc:
         raise SystemExit(f"{exc}. Try ./run games to find one in progress.")
@@ -146,7 +179,8 @@ def cmd_synthetic(args) -> int:
     label = f"synthetic-{args.as_of if args.as_of is not None else 'latest'}"
     manifest = recap.build(context, plays, as_of=args.as_of,
                            total_seconds=args.seconds,
-                           synth=_synth_for(args, label))
+                           synth=_synth_for(args, label),
+                           rephrase=_rephrase_for(args))
     return _emit(manifest, args)
 
 
@@ -195,6 +229,15 @@ def build_parser() -> argparse.ArgumentParser:
                             help="synthesize narration; timings become real")
         target.add_argument("--no-cache", action="store_true", dest="no_cache",
                             help="rebuild even if this at-bat is cached")
+        target.add_argument("--voice", choices=("kokoro", "polly"),
+                            default="kokoro",
+                            help="speech backend for --audio (default kokoro,"
+                                 " local and free)")
+        target.add_argument("--narrator", choices=("template", "bedrock"),
+                            default="template",
+                            help="who writes the words (default template,"
+                                 " deterministic; bedrock rewords it under the"
+                                 " numeric guard)")
 
     live = sub.add_parser("recap", help="recap a real game by gamePk")
     live.add_argument("game_pk", type=int)

@@ -69,6 +69,7 @@ def build(
     runs_explained: int = 0,
     runs_total: int = 0,
     speech_skipped: str | None = None,
+    fallback_reason: str | None = None,
 ) -> dict:
     """Stamp absolute timings onto segments and assemble the manifest."""
     if durations is not None and len(durations) != len(segments):
@@ -109,6 +110,10 @@ def build(
         "totalSeconds": round(cursor, 2),
         "timingSource": timing_source,
         "narrationSource": narration_source,
+        # Why the narrator in use is not the one that was asked for. Reporting
+        # the requested narrator while serving another is how a demo starts
+        # lying about itself.
+        "narrationFallback": fallback_reason,
         "audioUrl": audio_url,
         "guardViolations": guard_violations or [],
         "speechSkipped": speech_skipped,

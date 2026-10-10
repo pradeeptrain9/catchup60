@@ -29,6 +29,8 @@ def play_cost(play: Play) -> float:
 
 
 SynthFn = Callable[[list[dict]], tuple[object, list[float]]]
+# Returns (segments, fallback_reason). A reason means the rewrite was not used.
+RephraseFn = Callable[[list[dict], dict], tuple[list[dict], "str | None"]]
 
 
 def build(
@@ -38,6 +40,7 @@ def build(
     as_of: int | None = None,
     total_seconds: float = config.TOTAL_SECONDS,
     synth: SynthFn | None = None,
+    rephrase: RephraseFn | None = None,
 ) -> dict:
     """Build a recap manifest for a game truncated at `as_of`.
 
@@ -75,6 +78,17 @@ def build(
     segments = script.build_segments(context, state, result.plays, finished)
     payload = manifest.engine_payload(context, state, result.plays, plays)
 
+    # A model may reword what the engine wrote. It never decides what the engine
+    # decided, and the manifest reports which narrator actually produced the
+    # text rather than which one was asked for.
+    narration_source = "template"
+    fallback_reason: str | None = None
+    if rephrase is not None:
+        candidate, fallback_reason = rephrase(segments, payload)
+        if fallback_reason is None:
+            segments = candidate
+            narration_source = "bedrock"
+
     # The template narrator formats engine output, so it cannot fail this. It is
     # checked anyway: the guard must be exercised on every path, or it rots
     # until the day the model path needs it.
@@ -103,7 +117,8 @@ def build(
         segments,
         result,
         as_of=cursor,
-        narration_source="template",
+        narration_source=narration_source,
+        fallback_reason=fallback_reason,
         guard_violations=violations,
         durations=durations,
         audio_url=audio_url,
@@ -116,6 +131,7 @@ def build(
 def from_api(game_pk: int, as_of: int | None = None,
              total_seconds: float = config.TOTAL_SECONDS,
              synth: SynthFn | None = None,
+             rephrase: RephraseFn | None = None,
              use_cache: bool = True) -> dict:
     """Fetch and build, cheapest call first.
 
@@ -136,7 +152,8 @@ def from_api(game_pk: int, as_of: int | None = None,
         )
 
     cursor = as_of if as_of is not None else context.cursor
-    cache_key = cache.key(game_pk, cursor, total_seconds, synth is not None)
+    cache_key = cache.key(game_pk, cursor, total_seconds, synth is not None,
+                          rephrase is not None)
     if use_cache:
         hit = cache.get(cache_key)
         if hit is not None:
@@ -144,10 +161,25 @@ def from_api(game_pk: int, as_of: int | None = None,
 
     plays = mlb.win_probability(game_pk)
     result = build(context, plays, as_of=as_of, total_seconds=total_seconds,
-                   synth=synth)
+                   synth=synth, rephrase=rephrase)
     if use_cache:
         cache.put(cache_key, result)
     return result
+
+
+def polly_synth(workdir, *, progress: bool = False) -> SynthFn:
+    """Speech through Amazon Polly. Emits mp3 directly, so no encode step."""
+    def run(segments: list[dict]):
+        from .speech import polly
+        return polly.synthesize(segments, workdir, progress=progress)
+    return run
+
+
+def bedrock_rephrase() -> RephraseFn:
+    def run(segments: list[dict], payload: dict):
+        from .narrate import bedrock
+        return bedrock.rephrase(segments, payload)
+    return run
 
 
 def kokoro_synth(workdir, *, progress: bool = False,

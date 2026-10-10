@@ -222,15 +222,50 @@ So **cards animate against the manifest's own clock, not the audio element's
 the two agree, and audio attaches opportunistically where hardware supports it.
 On the simulator the recap is correct and silent.
 
+## The AWS path (optional)
+
+Everything above runs with no AWS account. These two swap in AWS services where
+they earn their place, and the project degrades to the local path whenever they
+are unavailable — `./run doctor` lists them as `opt`, not missing.
+
+```bash
+pip install -r requirements-aws.txt
+export AWS_REGION=us-east-1          # or whichever region you use
+aws configure                        # or set AWS_PROFILE
+```
+
+```bash
+./run recap 849832 --narrator bedrock --audio --voice polly --summary
+```
+
+**Bedrock** (`src/narrate/bedrock.py`) rewords the engine's sentences through
+Claude so they read better aloud. Its remit is deliberately small: it does not
+choose which plays mattered and it may not introduce a figure the engine did not
+produce. Every rewrite goes through `narrate/guard.py` first. A rejection costs
+one corrective retry that names the offending numbers back to the model; a
+second rejection falls back to the deterministic narrator, and the manifest
+records why in `narrationFallback`. Reporting the requested narrator while
+serving a different one is how a demo starts lying about itself.
+
+**Polly** (`src/speech/polly.py`) is the alternative voice. It emits mp3
+directly, which is what Vega's player wants. Kokoro stays the default because it
+is local, free, and needs no account — a judge should not have to create one.
+
+Per-segment durations are measured from the rendered audio in both paths, and
+`concat_with_gaps` pads every segment but the last, so the manifest always
+describes the file the app actually plays.
+
 ## Tests
 
 ```bash
-pytest           # offline, no model needed; a bare clone goes green
+pytest           # offline; no model, no network, no AWS account
 pytest -m tts    # real speech synthesis (needs the Kokoro weights)
+pytest -m media  # ffmpeg/ffprobe assembly, and Polly with the network faked
 pytest -m live   # hits the real StatsAPI
+cd tv && npx jest
 ```
 
-59 offline, 8 speech, 4 live.
+101 offline, 12 media, 8 speech, 4 live, 13 front-end.
 
 The live tests exist because the feed's shape is the one thing this project does
 not control, and a field rename would otherwise surface as a broken demo.
