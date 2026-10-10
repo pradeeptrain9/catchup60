@@ -38,7 +38,28 @@ def key(game_pk: int, cursor: int | None, total_seconds: float,
     return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
+def install(getter, putter) -> None:
+    """Swap the store out, as deploy/handler.py does for S3.
+
+    A Lambda's only writable path is /tmp, which survives a warm container and
+    nothing else, so the filesystem store below re-synthesizes the same at-bat
+    on every cold start. The indirection lives here rather than in the handler
+    so recap.from_api keeps calling one cache and does not grow a backend
+    argument that build() would have to thread through.
+    """
+    global _read, _write
+    _read, _write = getter, putter
+
+
 def get(cache_key: str) -> dict | None:
+    return _read(cache_key)
+
+
+def put(cache_key: str, manifest: dict) -> None:
+    _write(cache_key, manifest)
+
+
+def _read(cache_key: str) -> dict | None:
     path = DIR / f"{cache_key}.json"
     if not path.exists():
         return None
@@ -51,7 +72,7 @@ def get(cache_key: str) -> dict | None:
         return None
 
 
-def put(cache_key: str, manifest: dict) -> None:
+def _write(cache_key: str, manifest: dict) -> None:
     try:
         DIR.mkdir(parents=True, exist_ok=True)
         path = DIR / f"{cache_key}.json"

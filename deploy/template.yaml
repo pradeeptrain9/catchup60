@@ -1,0 +1,141 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Catch-Up 60 recap API. A Lambda behind an HTTP API, with one bucket for
+  narration mp3s and cached manifests.
+
+  The certificate is the point. Vega's media player refuses http and its
+  fetch refuses the self-signed cert the media pipeline accepts, so the local
+  server runs two listeners and the TV app rewrites URLs between them. API
+  Gateway terminates a real cert and S3 serves Range natively, which is the
+  other thing that player insists on, so both hacks go away on this path.
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: Bucket holding the deployment zip (deploy.sh creates it).
+  CodeKey:
+    Type: String
+    Default: catchup60/function.zip
+  Narrator:
+    Type: String
+    Default: bedrock
+    AllowedValues: [bedrock, template]
+    Description: >
+      bedrock rewords under the numeric guard and falls back to the template
+      on any failure, so this is safe to leave on before model access is
+      granted — the manifest reports which narrator actually spoke.
+  BedrockModel:
+    Type: String
+    Default: us.anthropic.claude-opus-5
+    Description: >
+      An inference profile ID, not a model ID. Bedrock reports every Anthropic
+      model as INFERENCE_PROFILE-only, so the ID from list-foundation-models
+      is guaranteed to fail; the us./global. prefixed one from
+      list-inference-profiles is the callable one.
+  PollyVoice:
+    Type: String
+    Default: Matthew
+
+Resources:
+  Media:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Private. The app is handed presigned GETs, which is also what keeps a
+      # shared manifest from being a permanent public audio link.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          # A recap is keyed on an at-bat that will never recur. Keeping them
+          # costs money to store rubbish; the manifest cache only needs to
+          # outlive the game it describes.
+          - Id: expire-recaps
+            Status: Enabled
+            ExpirationInDays: 7
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: recap
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub '${Media.Arn}/*'
+              - Effect: Allow
+                Action: polly:SynthesizeSpeech
+                Resource: '*'
+              - Effect: Allow
+                # Both forms: the profile is what you call, and it invokes the
+                # underlying model on your behalf, so a policy naming only the
+                # profile is denied at the second hop.
+                Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+                Resource:
+                  - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*'
+                  - 'arn:aws:bedrock:*::foundation-model/*'
+
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: handler.handler
+      Role: !GetAtt Role.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      # A cold start that fetches the feed, calls Bedrock twice through the
+      # guard's retry, then calls Polly twice, runs well past the 3s default.
+      Timeout: 60
+      # Memory buys CPU here; the work is network-bound but json and the
+      # packer are not, and 1024 measured faster than 512 for the same price.
+      MemorySize: 1024
+      Environment:
+        Variables:
+          CATCHUP60_BUCKET: !Ref Media
+          # /tmp is the only writable path. config.py creates its cache dirs
+          # at import, so without this the function fails before the handler
+          # ever runs.
+          CATCHUP60_CACHE: /tmp/cache
+          CATCHUP60_OUT: /tmp/out
+          CATCHUP60_NARRATOR: !Ref Narrator
+          CATCHUP60_BEDROCK_MODEL: !Ref BedrockModel
+          CATCHUP60_POLLY_VOICE: !Ref PollyVoice
+
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: catchup60
+      ProtocolType: HTTP
+      Target: !GetAtt Function.Arn
+
+  Permission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Function
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*'
+
+Outputs:
+  ApiUrl:
+    Description: Point tv/src/api.ts at this.
+    Value: !GetAtt Api.ApiEndpoint
+  Bucket:
+    Value: !Ref Media

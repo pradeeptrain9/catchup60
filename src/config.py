@@ -9,8 +9,13 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CACHE = ROOT / "cache"
-OUT = ROOT / "out"
+
+# Lambda unpacks the package into a read-only /var/task and gives you /tmp.
+# Creating cache/ next to the source therefore fails at *import* time there,
+# before any handler code runs, which surfaces as an unexplained init error
+# rather than as a path problem. One override keeps both deployments honest.
+CACHE = Path(os.environ.get("CATCHUP60_CACHE") or ROOT / "cache")
+OUT = Path(os.environ.get("CATCHUP60_OUT") or ROOT / "out")
 WORK = CACHE / "work"
 MODELS = CACHE / "models"
 FIXTURES = ROOT / "tests" / "fixtures"
@@ -70,4 +75,10 @@ SPEED = float(os.environ.get("CATCHUP60_SPEED", "1.05"))
 SEGMENT_GAP = 0.28
 
 for directory in (CACHE, OUT, WORK, MODELS):
-    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # A read-only root is not a reason to refuse to import. Whatever
+        # actually needs the directory will say so, with its own path in the
+        # message.
+        pass
