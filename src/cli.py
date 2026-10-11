@@ -231,8 +231,12 @@ def cmd_verdict(args) -> int:
     result = watch.verdict(path)
     print(json.dumps(result, indent=1))
     # Non-zero while the premise is unproven, so this can gate a checklist
-    # rather than be read and forgotten.
-    return 0 if result["updatesMidGame"] else 1
+    # rather than be read and forgotten. Exit 2 separates "no data yet" from
+    # exit 1's "watched it and the answer is no" — only one of those means
+    # the project needs rethinking.
+    if result["updatesMidGame"]:
+        return 0
+    return 1 if result["liveTicks"] else 2
 
 
 def build_parser() -> argparse.ArgumentParser:

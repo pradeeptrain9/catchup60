@@ -131,6 +131,17 @@ def verdict(path: Path) -> dict:
         "lagMax": max(lags) if lags else None,
         "errorsWhileLive": [r["error"] for r in rows
                             if r.get("state") == "Live" and r.get("error")][:5],
-        # The one line this file exists to produce.
-        "updatesMidGame": bool(grew),
+        # The one line this file exists to produce. Tri-state on purpose:
+        # None is "never saw a live tick", which is not the same answer as
+        # "watched it live and the endpoint stood still". A plain False for
+        # both reads as a disproof of the premise the whole project rests on,
+        # when in fact nothing was observed — the first run of this watcher
+        # idled nine hours in Preview against a game whose first pitch was
+        # still eight hours out, and reported `updatesMidGame: false`.
+        "updatesMidGame": bool(grew) if live else None,
+        "verdict": (
+            "updates mid-game" if grew
+            else "inconclusive — no live ticks observed" if not live
+            else "did NOT update across %d live ticks" % len(live)
+        ),
     }

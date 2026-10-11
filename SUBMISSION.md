@@ -134,7 +134,16 @@ And a device you cannot photograph is a device you have not tested.
 
 ## What's next
 
-Confirm `winProbability` updates mid-game — the one premise still unproven.
+Confirm `winProbability` updates mid-game — the one premise still unproven. It
+holds on completed games; whether the league publishes the per-play numbers
+while a game is in progress, or backfills them at the whistle, is the one thing
+we have not been able to observe. A watcher polls the NLCS game and answers it
+in one line (`./run verdict <gamePk>`), and it reports three outcomes, not two:
+if it has not seen a live tick it says so rather than returning the same "no"
+it would return for a feed that stood still all game. The recap works either
+way on a game you joined late and the league has published; a backfilling feed
+would narrow it to that case.
+
 Then other sports, since nothing in the engine is baseball-specific beyond the
 field name, and a "what did I miss" prompt that follows you into a second game.
 

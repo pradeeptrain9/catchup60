@@ -81,6 +81,29 @@ class TestVerdict:
         assert result["liveTicks"] == 1
         assert result["updatesMidGame"] is False
 
+    def test_preview_only_is_inconclusive_not_a_refutation(self, tmp_path):
+        """The first real run of this watcher idled nine hours against a game
+        whose first pitch was still eight hours out, and reported
+        `updatesMidGame: false`. Read on the morning of a deadline that is a
+        disproof of the premise the product rests on, and the wrong call is to
+        rebuild something that was never tested."""
+        path = write(tmp_path, [
+            {"at": "t0", "state": "Preview", "detail": "Scheduled",
+             "cursor": None},
+            {"at": "t1", "state": "Preview", "detail": "Scheduled",
+             "cursor": None},
+        ])
+        result = watch.verdict(path)
+        assert result["liveTicks"] == 0
+        assert result["updatesMidGame"] is None
+        assert "inconclusive" in result["verdict"]
+
+    def test_a_real_negative_is_distinguishable_from_no_data(self, tmp_path):
+        path = write(tmp_path, [live_row("t1", 10, 9), live_row("t2", 10, 9)])
+        result = watch.verdict(path)
+        assert result["updatesMidGame"] is False
+        assert "did NOT update" in result["verdict"]
+
     def test_a_half_written_line_is_skipped_not_fatal(self, tmp_path):
         """The watcher is killed with ^C or a closed laptop; the last line is
         often a fragment. Losing the whole record to it would be absurd."""
