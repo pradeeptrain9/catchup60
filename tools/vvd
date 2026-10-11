@@ -6,9 +6,18 @@
 # by hand — which is not verification, and is impossible to put in a test.
 #
 # The VVD is an Android-emulator-derived QEMU and it exposes the standard
-# emulator console on port 5556, authenticated by the token the emulator wrote
-# to ~/.emulator_console_auth_token. That console has `event send` and
-# `screenrecord screenshot`. Everything below is those two commands.
+# emulator console on an even port from 5554 up, authenticated by the token the
+# emulator wrote to ~/.emulator_console_auth_token. That console has
+# `event send` and `screenrecord screenshot`. Everything below is those two
+# commands.
+#
+# The port is probed, not assumed. This said 5556 for most of the project and
+# was right for the wrong reason: an unrelated Android emulator had been
+# running for thirty-eight days and held 5554, so the VVD landed on the next
+# slot. Stopping that emulator moved the VVD to 5554 and every command here
+# would have failed with the silence of an unanswered socket, which is
+# indistinguishable from the device having died — the exact failure this
+# project already lost hours to.
 #
 # Key injection does not work, and fails silently: `event send EV_KEY:...`
 # is accepted and answered OK, and nothing reaches the app. Vega OS is not
@@ -23,9 +32,34 @@
 #   tools/vvd console "<raw console command>"
 set -euo pipefail
 
-PORT="${VVD_CONSOLE_PORT:-5556}"
 TOKEN_FILE="${VVD_TOKEN_FILE:-$HOME/.emulator_console_auth_token}"
 [ -r "$TOKEN_FILE" ] || { echo "no console token at $TOKEN_FILE" >&2; exit 1; }
+
+find_port() {
+  # Emulator consoles sit on even ports from 5554. Take the first that answers
+  # the emulator greeting, so an unrelated Android emulator on an earlier slot
+  # is skipped rather than talked to by mistake.
+  #
+  # The greeting is captured and then matched, rather than piped into
+  # `grep -q`. Under `set -o pipefail` those are not the same thing: grep -q
+  # exits at the first match, nc takes EPIPE, and the pipeline reports failure
+  # even though the port answered perfectly. The first version of this probe
+  # did exactly that and declared a healthy device absent.
+  local p hello
+  for p in 5554 5556 5558 5560 5562; do
+    hello="$(printf 'quit\n' | nc -w 2 127.0.0.1 "$p" 2>/dev/null || true)"
+    case "$hello" in
+      *"Android Console"*) echo "$p"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+PORT="${VVD_CONSOLE_PORT:-$(find_port || true)}"
+[ -n "$PORT" ] || {
+  echo "no emulator console answering on 5554-5562 — is the device up?" >&2
+  echo "  source ~/vega/env && vega device list" >&2
+  exit 1; }
 
 console() {
   # The token never reaches the command line, so it stays out of `ps` and out

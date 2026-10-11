@@ -519,9 +519,18 @@ which is not verification and cannot go in a test. A four-second overrun past
 a sixty-second promise looks exactly like a correct recap from across the room.
 
 **Workaround:** the VVD is an Android-emulator-derived QEMU and it exposes the
-standard Android emulator console on port 5556, authenticated with the token
-in `~/.emulator_console_auth_token`. From there `screenrecord screenshot`
-works, which is how this project got its first real look at its own UI.
+standard Android emulator console on an even port from 5554 up, authenticated
+with the token in `~/.emulator_console_auth_token`. From there `screenrecord
+screenshot` works, which is how this project got its first real look at its
+own UI.
+
+Which port is not fixed and nothing in the Vega CLI reports it. This project
+read 5556 for weeks and was right by accident: an unrelated Android emulator
+held 5554, so the VVD took the next slot. Stopping that emulator moved the VVD
+to 5554, and a hardcoded 5556 then failed as an unanswered socket — which is
+exactly what a dead device looks like, in a project that had already lost
+hours to devices dying silently. `tools/vvd` now probes 5554 upward for the
+console greeting instead of assuming.
 
 `event send EV_KEY:KEY_CENTER:1` does not. It is **accepted and answered
 `OK`** and nothing reaches the app — the console inherits Android's key path
@@ -534,9 +543,11 @@ which is how the app is driven in `tools/vvd`.
 an app you have watched.
 
 **Suggestion:** `vega device screenshot` and `vega device key <KEY>` as
-first-class commands. Failing that, two smaller things: have the emulator
-console reject the key commands it cannot deliver instead of answering `OK`,
-and document that `event mouse` is the working input path.
+first-class commands. Failing that, three smaller things: have the emulator
+console reject the key commands it cannot deliver instead of answering `OK`;
+document that `event mouse` is the working input path; and print the console
+port in `vega device list`, since the device already knows it and every
+consumer of it is otherwise guessing.
 
 ---
 

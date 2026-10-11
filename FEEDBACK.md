@@ -23,9 +23,12 @@ thing with focus on the first try.
 subcommands and neither a screenshot nor a key press. So verification means
 sitting in front of the window, which cannot go in a test and misses things: a
 recap running 63.94 seconds against a 60-second promise looks correct from
-across the room. We found the VVD answers the Android emulator console on port
-5556, where `screenrecord screenshot` works — that is how this project first
-saw its own UI. **Please add `vega device screenshot` and `vega device key`.**
+across the room. We found the VVD answers the Android emulator console, where
+`screenrecord screenshot` works, and that is how this project first saw its own
+UI. The port is not fixed — 5554 if the slot is free, 5556 if another emulator
+has it — and `vega device list` does not print it, so a tool has to probe.
+**Please add `vega device screenshot` and `vega device key`, and print the
+console port.**
 
 *Key injection fails silently.* On that same console, `event send
 EV_KEY:KEY_CENTER:1` is accepted and answered `OK`, and nothing reaches the
