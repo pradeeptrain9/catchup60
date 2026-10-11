@@ -135,3 +135,24 @@ class TestBudgetFlexibility:
         full = recap.build(context, plays, total_seconds=60.0)
         assert short["totalSeconds"] <= 30.0
         assert short["totalSeconds"] < full["totalSeconds"]
+
+
+class TestFallbackIsNotCached:
+    """A narration fallback must not outlive the thing that caused it.
+
+    A manifest cached while Bedrock was misconfigured kept being served for a
+    week afterwards, still naming a dependency that had since been removed,
+    long after the model itself was answering normally.
+    """
+
+    def test_a_manifest_with_a_fallback_is_not_cacheable(self):
+        assert recap.cacheable({"narrationFallback": "bedrock call: 403"}) is False
+
+    def test_a_clean_manifest_is_cacheable(self):
+        assert recap.cacheable({"narrationFallback": None}) is True
+        assert recap.cacheable({}) is True
+
+    def test_a_guard_rejection_is_still_cacheable(self):
+        """Unlike a fallback, that repeats identically for the same input."""
+        assert recap.cacheable({"speechSkipped": "narration failed the numeric "
+                                                 "guard"}) is True

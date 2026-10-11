@@ -173,7 +173,8 @@ def _recap(who: str, query: dict) -> dict:
                 synth=_synth(label) if want_audio else None,
                 rephrase=_rephrase(),
             )
-            cache.put(key, manifest)
+            if recap.cacheable(manifest):
+                cache.put(key, manifest)
     else:
         game_pk = int(who)
         label = f"{game_pk}-{as_of if as_of is not None else 'latest'}"

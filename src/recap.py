@@ -159,6 +159,25 @@ def build(
     )
 
 
+def cacheable(manifest: dict) -> bool:
+    """Whether a manifest is worth keeping.
+
+    A narration fallback is a statement about the environment, not about the
+    game: the model was unreachable, unentitled or misconfigured. Storing it
+    under the key that means "the model was asked" makes the outage outlive
+    its own fix — a manifest cached while Bedrock was misconfigured kept being
+    served for a week afterwards, still carrying the obsolete reason, long
+    after the model itself was answering.
+
+    The cost of this is that a persistently broken model re-synthesizes on
+    every request instead of once. That is the right way round: a fallback is
+    a thing to notice and fix, and paying for it is how it stays noticed.
+    A guard rejection is not included here, because that is a property of the
+    text and the payload and will repeat identically.
+    """
+    return not manifest.get("narrationFallback")
+
+
 def from_api(game_pk: int, as_of: int | None = None,
              total_seconds: float = config.TOTAL_SECONDS,
              synth: SynthFn | None = None,
@@ -193,7 +212,7 @@ def from_api(game_pk: int, as_of: int | None = None,
     plays = mlb.win_probability(game_pk)
     result = build(context, plays, as_of=as_of, total_seconds=total_seconds,
                    synth=synth, rephrase=rephrase)
-    if use_cache:
+    if use_cache and cacheable(result):
         cache.put(cache_key, result)
     return result
 

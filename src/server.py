@@ -161,7 +161,8 @@ class Handler(BaseHTTPRequestHandler):
                 synth = self._synth(label) if want_audio else None
                 manifest = recap.build(context, plays, as_of=as_of,
                                        total_seconds=seconds, synth=synth)
-                cache.put(key, manifest)
+                if recap.cacheable(manifest):
+                    cache.put(key, manifest)
         else:
             game_pk = int(who)
             replay = getattr(self.server, "replay", None)

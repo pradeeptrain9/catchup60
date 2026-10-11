@@ -583,3 +583,50 @@ found" distinguish "was running, stopped at HH:MM" from "was never started".
 And if the adb interaction is real, pick ports outside adb's 5554-5584 scan
 range, since Android tooling on the same machine is close to universal for
 anyone building a TV app.
+
+
+---
+
+## 15. The Anthropic SDK's Bedrock client is entitled separately from Bedrock
+
+**Task:** Call Claude on Bedrock from Python, having cleared every documented
+gate — account activated, use-case form submitted, model quotas granted and
+non-zero.
+
+**Steps:** `AnthropicBedrockMantle(aws_region=...)`, then
+`client.messages.create(...)`, which is what the Anthropic SDK documents for
+Bedrock.
+
+**Expected:** The same answer `aws bedrock-runtime converse` gives.
+
+**What happened:** 403 for every model.
+
+> `anthropic.claude-haiku-4-5 is not available for this account. You can
+> explore other available models on Amazon Bedrock.`
+
+On the same credentials, in the same second, `converse` with
+`us.anthropic.claude-haiku-4-5-20251001-v1:0` returned "ok". The quotas page
+showed 5,000,000 TPM and 10 RPM for that model. So the account plainly had
+access to Bedrock; what it did not have was access to the Anthropic-operated
+gateway that `AnthropicBedrockMantle` talks to, which is entitled on its own
+and says nothing about being a separate product.
+
+The message is the problem. "Not available for this account" is the same
+sentence Bedrock itself uses for an ungranted model, so it reads as the gate
+that had just been cleared, and the natural response — check entitlement,
+check quota, check the form — is the wrong one, repeatedly.
+
+The one thing that eventually distinguished them was that the gateway tells
+404 from 403: `anthropic.claude-haiku-4-5` gave 403 while
+`us.anthropic.claude-haiku-4-5-20251001-v1:0` gave 404. So the SDK knew that
+model, had its own naming for it, and was refusing on entitlement rather than
+on spelling — which is the only reason the diagnosis was available at all.
+
+**Severity:** Major. Everything else had been cleared; this looked like the
+failure that had already been fixed three times.
+
+**Suggestion:** Say which service is refusing. "This account is not entitled
+to the Anthropic API on Bedrock; your Amazon Bedrock access is separate" would
+have ended this immediately. Also worth stating in the SDK's Bedrock docs that
+`AnthropicBedrockMantle` is not a wrapper over `bedrock-runtime` and requires
+its own entitlement — the obvious reading is that it is one.
