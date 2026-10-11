@@ -454,6 +454,21 @@ applied zero only shows up through `list-service-quotas`. An hour went into
 comparing regions on the strength of that number before noticing the two
 calls disagreed.
 
+**And the one number that is wrong cannot be changed.** Those four per-minute
+quotas report `Adjustable: True`, so the obvious move is to request an
+increase. It is refused:
+
+> `IllegalArgumentException: You must provide a quota value greater than the
+> default quota value of 5000000.0`
+
+Service Quotas will not accept a request below the default, and the default
+is 5,000,000 — the value it also reports through `get-service-quota` while
+the applied value is zero. So the service believes the account already has
+five million tokens per minute, the runtime refuses every call, and the only
+request the console will accept is one for *more* than a quota that is not
+actually in force. The zero comes from somewhere Service Quotas does not
+model, and there is no API that names it.
+
 **And the form has no address.** The error says "Fill out the Anthropic use
 case details form". The console page named after exactly that — **Model
 access**, still in the left nav, still the first search result — now renders
