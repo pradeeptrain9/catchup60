@@ -103,8 +103,14 @@ covers exactly that: start at 28, press again around 37.
 
 **3. Install and launch.**
 
+`source ~/vega/env` has to be on this line. Without it the build gets most of
+the way — JS bundle, sourcemap, Hermes, several minutes of healthy output —
+and then the native step fails with `Vega CLI was not found in ambient
+environment, nor could be found within $KEPLER_SDK_PATH (value = 'undefined')`.
+Late enough to be expensive on a shoot day.
+
 ```bash
-cd tv && npm run build:release && cd .. && vega device install-app --device VirtualDevice --packagePath "$PWD/tv/build/aarch64-release/catchup60_aarch64.vpkg" && vega device launch-app --device VirtualDevice --appName com.pradeepkonda.catchup60.main
+source ~/vega/env && cd tv && npm run build:release && cd .. && vega device install-app --device VirtualDevice --packagePath "$PWD/tv/build/aarch64-release/catchup60_aarch64.vpkg" && vega device launch-app --device VirtualDevice --appName com.pradeepkonda.catchup60.main
 ```
 
 **4. Drive it.** The simulator takes no remote key presses (`FRICTION.md` 13),
