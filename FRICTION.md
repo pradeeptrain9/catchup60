@@ -568,10 +568,22 @@ recaps and take a dozen screenshots, where before it had never lasted ten
 minutes.
 
 It then died again with no `adb` process running at all, so that is at most
-part of the story and possibly a coincidence of timing. What is certain is
-the part that matters here: the device dies on its own, repeatedly, and
-**nothing anywhere says that it did**. Hours went into this and the cause is
-still not known, because there is no evidence to reason from.
+part of the story and possibly a coincidence of timing.
+
+A later death narrowed it further without settling it. Three launches in one
+session each printed "Virtual device ready", and all three were gone
+afterwards: port 5556 closed, `vega device list` reporting "No devices found",
+and `virtual_device.log` again silent. No `adb` was running for any of them.
+The unrelated emulator was still there and now identifiable — a QEMU process
+for an Android `Medium_Phone` AVD, thirty-eight days of uptime, holding the
+5554 slot while the VVD takes 5556/5557. So the two coexist on adjacent ports
+whether or not `adb` is mediating, which keeps port contention on the list of
+suspects and takes `adb` off the top of it.
+
+What is certain is the part that matters here: the device dies on its own,
+repeatedly, and **nothing anywhere says that it did**. Hours went into this
+and the cause is still not known, because there is no evidence to reason
+from.
 
 **Severity:** Major. An emulator that stops without saying so turns every
 subsequent command into a misleading error, and there is no way to tell a
