@@ -86,6 +86,41 @@ Expect `totalSeconds` in 50–60, `timingSource: tts`, and an audio URL that
 plays. Ask twice for the same game and at-bat: the second is a cache hit, so
 it returns without paying Polly, with a freshly signed URL.
 
+## What it costs
+
+Everything except Polly is inside a free tier at any volume this project will
+reach. Lambda's 1M requests and 400,000 GB-seconds a month are always free,
+not a trial; API Gateway is $1.00 per million requests; the bucket holds a few
+hundred kilobytes per recap and expires it after a week.
+
+Polly is the only line item, and it is billed twice per recap because Polly
+will not return speech marks and audio in one call. Measured on the fixture
+game: 682 characters of narration, 995 as SSML, 1,990 billed.
+
+| | per recap | per 100 | inside a 1M-character free tier |
+|---|---|---|---|
+| neural | $0.032 | $3.18 | ~500 recaps |
+| generative | $0.060 | $5.97 | ~500 recaps |
+
+Three things keep that number near zero in practice.
+
+**The cache is the biggest lever.** Manifests are keyed on `(gamePk, cursor)`,
+so every poll inside the same at-bat is an S3 read and no synthesis at all —
+measured 0.9s against 3.7s, and nothing billed. A live game polled every ten
+seconds costs one synthesis per at-bat, not one per poll.
+
+**The narrator defaults to `template`**, which costs nothing and always works.
+Bedrock is opt-in via the stack parameter.
+
+**Concurrency is capped at the account level.** A new AWS account allows 10
+concurrent Lambda executions in total, which bounds what any loop can spend.
+Note that this is also why the template carries no `ReservedConcurrentExecutions`:
+Lambda refuses to reserve any share of a 10-execution account, because it
+insists 10 stay unreserved.
+
+A $5 monthly budget with an alert at half is worth setting; two budgets are
+free.
+
 ## Tear down
 
 ```bash

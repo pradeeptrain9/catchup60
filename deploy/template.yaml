@@ -18,12 +18,13 @@ Parameters:
     Default: catchup60/function.zip
   Narrator:
     Type: String
-    Default: bedrock
+    Default: template
     AllowedValues: [bedrock, template]
     Description: >
-      bedrock rewords under the numeric guard and falls back to the template
-      on any failure, so this is safe to leave on before model access is
-      granted — the manifest reports which narrator actually spoke.
+      Defaults to template, which costs nothing and always works. bedrock
+      rewords under the numeric guard and falls back to the template on any
+      failure, so switching it on is safe before model access is granted —
+      the manifest reports which narrator actually spoke.
   BedrockModel:
     Type: String
     Default: us.anthropic.claude-opus-5
@@ -106,6 +107,14 @@ Resources:
       # Memory buys CPU here; the work is network-bound but json and the
       # packer are not, and 1024 measured faster than 512 for the same price.
       MemorySize: 1024
+      # No ReservedConcurrentExecutions. It was here as a spend ceiling and
+      # Lambda refuses it: "decreases account's UnreservedConcurrentExecution
+      # below its minimum value of [10]". A new account's *total* concurrency
+      # limit is 10 rather than 1000, so reserving any share of it leaves less
+      # than the ten Lambda insists stay unreserved. That account-wide 10 is
+      # already a tighter ceiling than the one being asked for, so the right
+      # answer is to rely on it rather than to raise the account limit in
+      # order to restrict it.
       Environment:
         Variables:
           CATCHUP60_BUCKET: !Ref Media
@@ -117,6 +126,15 @@ Resources:
           CATCHUP60_NARRATOR: !Ref Narrator
           CATCHUP60_BEDROCK_MODEL: !Ref BedrockModel
           CATCHUP60_POLLY_VOICE: !Ref PollyVoice
+
+  Logs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Function}'
+      # Lambda creates this group itself with no expiry, so logs accumulate
+      # forever and eventually cost more than the function. A week outlives any
+      # debugging session this project will have.
+      RetentionInDays: 7
 
   Api:
     Type: AWS::ApiGatewayV2::Api
