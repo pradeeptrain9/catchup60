@@ -207,6 +207,28 @@ def cmd_clean(args) -> int:
     return 0
 
 
+def cmd_watch(args) -> int:
+    from . import watch
+    dest = watch.watch(args.game_pk, every=args.every,
+                       idle_every=args.idle_every, hours=args.hours)
+    print(dest)
+    return 0
+
+
+def cmd_verdict(args) -> int:
+    import json
+
+    from . import watch
+    path = config.OUT / f"watch-{args.game_pk}.jsonl"
+    if not path.exists():
+        raise SystemExit(f"no watch file at {path} — ./run watch {args.game_pk}")
+    result = watch.verdict(path)
+    print(json.dumps(result, indent=1))
+    # Non-zero while the premise is unproven, so this can gate a checklist
+    # rather than be read and forgotten.
+    return 0 if result["updatesMidGame"] else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="catchup60",
@@ -261,6 +283,24 @@ def build_parser() -> argparse.ArgumentParser:
     server.add_argument("--https", action="store_true",
                         help="serve over TLS; Vega's player refuses http:// audio")
     server.set_defaults(fn=cmd_serve)
+
+    watcher = sub.add_parser(
+        "watch",
+        help="poll a game and record whether winProbability advances live")
+    watcher.add_argument("game_pk", type=int)
+    watcher.add_argument("--every", type=float, default=60.0,
+                         help="seconds between polls once the game is live")
+    watcher.add_argument("--idle-every", type=float, default=600.0,
+                         dest="idle_every",
+                         help="seconds between polls before first pitch")
+    watcher.add_argument("--hours", type=float, default=26.0,
+                         help="give up after this long")
+    watcher.set_defaults(fn=cmd_watch)
+
+    said = sub.add_parser(
+        "verdict", help="read a watch file and answer what it was opened for")
+    said.add_argument("game_pk", type=int)
+    said.set_defaults(fn=cmd_verdict)
 
     clean = sub.add_parser("clean", help="drop cache/work")
     clean.set_defaults(fn=cmd_clean)
