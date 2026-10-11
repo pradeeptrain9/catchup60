@@ -11,7 +11,10 @@ import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {
   fetchPlayable,
   fetchRecap,
+  getOrigin,
   NotStarted,
+  originLabel,
+  toggleOrigin,
   type Game,
   type Manifest,
 } from './api';
@@ -53,6 +56,15 @@ export const App = () => {
     void loadGames();
   }, [loadGames]);
 
+  const switchOrigin = useCallback(() => {
+    // Reload rather than keep the list: the two backends answer from different
+    // slates — the local one can be running a replay clock — so showing one
+    // origin's games under the other's name would be a lie on screen.
+    const origin = toggleOrigin();
+    report(`origin ${origin}`);
+    void loadGames();
+  }, [loadGames]);
+
   const pick = useCallback(async (game: Game) => {
     setScreen({name: 'building', game});
     report(`pick ${game.id} ${game.away}@${game.home} live=${game.live}`);
@@ -73,7 +85,7 @@ export const App = () => {
         error instanceof NotStarted
           ? `${error.message}`
           : `${error?.message ?? error}`;
-      report(`error ${message}`);
+      report(`error [${getOrigin()}] ${message}`);
       setScreen({name: 'error', message, games: null});
     }
   }, []);
@@ -85,6 +97,11 @@ export const App = () => {
     }
     if (screen.name === 'building') {
       return `${screen.game.away} at ${screen.game.home}`;
+    }
+    if (screen.name === 'error') {
+      // Which backend failed, on screen. Two origins means "it is broken" is
+      // only half an answer.
+      return `via ${originLabel(getOrigin())}`;
     }
     return 'What do you want to catch up on?';
   })();
@@ -103,7 +120,11 @@ export const App = () => {
       )}
 
       {screen.name === 'games' && (
-        <GameList games={screen.games} onPick={pick} />
+        <GameList
+          games={screen.games}
+          onPick={pick}
+          onSwitchOrigin={switchOrigin}
+        />
       )}
 
       {screen.name === 'building' && (

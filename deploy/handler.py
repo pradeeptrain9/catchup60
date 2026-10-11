@@ -193,8 +193,16 @@ def handler(event, context=None):
             return _reply(200, {
                 "service": "catchup60",
                 "routes": ["/playable", "/games", "/recap/{gamePk}",
-                           "/recap/synthetic"],
+                           "/recap/synthetic", "/log?m="],
             })
+        if route == "/log":
+            # The device's only way to say what it rendered. The local server
+            # has had this from the start; without it here, switching the app
+            # to the deployed origin silently turns off on-device debugging —
+            # every report 404s and the screen becomes unobservable again.
+            # print() is the CloudWatch channel.
+            print(f"[device] {query.get('m', '')}")
+            return _reply(200, {"logged": True})
         if route == "/games":
             return _reply(200, mlb.schedule(date=query.get("date")))
         if route == "/playable":

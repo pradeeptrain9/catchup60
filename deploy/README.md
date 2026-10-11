@@ -44,9 +44,28 @@ none — so manifests from the two paths are interchangeable.
 
 ## Point the app at it
 
-`tv/src/api.ts`: replace `HOST`/`API`/`AUDIO_ORIGIN` with the printed URL. The
-two-origin split goes away; audio URLs arrive absolute and already signed, so
-`audioUrl()`'s rewrite becomes a no-op.
+Already done, and switchable at runtime: the last row of the game list reads
+`Source: Local server` / `Source: AWS` and toggles on press. No rebuild, no
+edit — both are demonstrable in one sitting, which matters because they show
+different things. Local drives the replay clock, which is how a live game can
+be shown when none is on; AWS is the real deployment.
+
+The deployed URL is in `BACKENDS.cloud.api` in `tv/src/api.ts`. Change it
+there if the stack is recreated, since API Gateway issues a new id.
+
+Two differences the switch has to handle. The audio URL is absolute and
+presigned on the cloud path, so it is used exactly as it arrives — rewriting
+it would strip the signature. And the device's telemetry follows the origin,
+which is why the Lambda answers `/log` too: without it, switching to the
+deployed backend silently turns off the only way to see what the app
+rendered. Those reports land in CloudWatch:
+
+```bash
+aws logs tail "/aws/lambda/$(aws cloudformation describe-stack-resource \
+  --stack-name catchup60 --logical-resource-id Function \
+  --query 'StackResourceDetail.PhysicalResourceId' --output text)" \
+  --since 10m --format short | grep device
+```
 
 ## Access to the models
 

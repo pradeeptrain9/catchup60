@@ -1,17 +1,61 @@
 /**
- * Backend access.
+ * Backend access, against either of two origins.
  *
- * Manifests come over http and audio over https, which is not an oversight:
- * Vega's media player refuses http:// outright, while fetch() rejects the
- * development server's self-signed certificate. In production both are https
- * from one trusted origin and these two constants collapse into one.
+ * Local is the development server on this Mac, and it is two listeners on two
+ * ports: Vega's media player refuses http:// outright, while fetch() rejects
+ * that server's self-signed certificate. So manifests come over http and audio
+ * over https, and an audio URL has to be moved between them.
  *
- * The host is 10.0.2.2 because the Vega Virtual Device does not share the
- * host's loopback — same convention as the Android emulator.
+ * Cloud is the deployed stack, and it has neither problem. API Gateway
+ * terminates a real certificate, and audio is a presigned S3 URL that already
+ * answers Range requests — so the manifest's audioUrl is used exactly as it
+ * arrives. Rewriting it would strip the signature and break it.
+ *
+ * Both are kept because they demonstrate different things: local drives the
+ * replay clock, which is how a live game can be shown without one being on,
+ * and cloud is the real deployment. The switch is at the bottom of the game
+ * list, so neither needs a rebuild.
+ *
+ * The choice lives in memory. Vega has no storage that does not cost a native
+ * dependency, and this project has none; relaunching the app returns to local.
  */
-const HOST = '10.0.2.2';
-export const API = `http://${HOST}:8080`;
-const AUDIO_ORIGIN = `https://${HOST}:8443`;
+
+/** 10.0.2.2 is the host as seen from the virtual device, as on Android. */
+const LOCAL_HOST = '10.0.2.2';
+
+export type Origin = 'local' | 'cloud';
+
+type Backend = {label: string; api: string; audio: string | null};
+
+const BACKENDS: Record<Origin, Backend> = {
+  local: {
+    label: 'Local server',
+    api: `http://${LOCAL_HOST}:8080`,
+    // Audio lives on the other listener, so it has to be rewritten.
+    audio: `https://${LOCAL_HOST}:8443`,
+  },
+  cloud: {
+    label: 'AWS',
+    api: 'https://vbww5kcz7l.execute-api.us-east-1.amazonaws.com',
+    // null means "the manifest's URL is already correct". It is a presigned
+    // S3 link whose signature covers the query string.
+    audio: null,
+  },
+};
+
+let current: Origin = 'local';
+
+export const getOrigin = (): Origin => current;
+export const originLabel = (origin: Origin): string => BACKENDS[origin].label;
+export const setOrigin = (origin: Origin): void => {
+  current = origin;
+};
+export const toggleOrigin = (): Origin => {
+  current = current === 'local' ? 'cloud' : 'local';
+  return current;
+};
+
+export const API = (): string => BACKENDS[current].api;
 
 export type Game = {
   id: string;
@@ -56,7 +100,7 @@ export type Manifest = {
 export class NotStarted extends Error {}
 
 export const fetchPlayable = async (): Promise<Game[]> => {
-  const response = await fetch(`${API}/playable`);
+  const response = await fetch(`${API()}/playable`);
   if (!response.ok) {
     throw new Error(`playable: HTTP ${response.status}`);
   }
@@ -64,7 +108,7 @@ export const fetchPlayable = async (): Promise<Game[]> => {
 };
 
 export const fetchRecap = async (gameId: string): Promise<Manifest> => {
-  const response = await fetch(`${API}/recap/${gameId}`);
+  const response = await fetch(`${API()}/recap/${gameId}`);
   if (response.status === 409) {
     // The game exists but has no plays yet. A distinct type, because this is
     // "come back after the first pitch", not a failure.
@@ -78,11 +122,15 @@ export const fetchRecap = async (gameId: string): Promise<Manifest> => {
   return response.json();
 };
 
-/** Audio lives on the https listener, whatever origin served the manifest. */
 export const audioUrl = (manifest: Manifest): string | null => {
   if (!manifest.audioUrl) {
     return null;
   }
+  const {audio} = BACKENDS[current];
+  if (audio === null) {
+    // Already absolute, already signed. Touching it invalidates it.
+    return manifest.audioUrl;
+  }
   const path = manifest.audioUrl.replace(/^https?:\/\/[^/]+/, '');
-  return `${AUDIO_ORIGIN}${path}`;
+  return `${audio}${path}`;
 };

@@ -558,16 +558,28 @@ find an instance of Vega Virtual Device, launch the virtual device and try
 again", which reads like you forgot to start it.
 
 Running it from a shell that stayed open did not help, so it was not process
-cleanup. The cause was an `adb` server running for an unrelated Android
-project: the VVD takes emulator ports 5556/5557, `adb` scans 5554-5584 looking
-for Android emulators, finds a QEMU that is not one, and the VVD dies.
-`adb kill-server` fixed it completely — the device has been up ever since.
+cleanup.
 
-**Severity:** Major. Android tooling on the same machine is close to universal
-for anyone building a TV app, the two never mention each other, and nothing in
-the failure points at the cause.
+A strong suspect is `adb`. An Android emulator for an unrelated project was
+running, the VVD takes emulator ports 5556/5557, and `adb` scans 5554-5584
+looking for Android emulators. After `adb kill-server` the device stayed up
+for roughly half an hour — long enough to install, launch, play two full
+recaps and take a dozen screenshots, where before it had never lasted ten
+minutes.
 
-**Suggestion:** Pick ports outside adb's scan range, or refuse adb's probe
-rather than dying on it. At minimum, log *something* when the device goes
-down, and have "Device not found" say that the device was running and stopped
-rather than implying it was never started.
+It then died again with no `adb` process running at all, so that is at most
+part of the story and possibly a coincidence of timing. What is certain is
+the part that matters here: the device dies on its own, repeatedly, and
+**nothing anywhere says that it did**. Hours went into this and the cause is
+still not known, because there is no evidence to reason from.
+
+**Severity:** Major. An emulator that stops without saying so turns every
+subsequent command into a misleading error, and there is no way to tell a
+crash from a configuration mistake.
+
+**Suggestion:** Log the shutdown — a single line with a reason in
+`virtual_device.log` would have ended this in a minute. Have "Device not
+found" distinguish "was running, stopped at HH:MM" from "was never started".
+And if the adb interaction is real, pick ports outside adb's 5554-5584 scan
+range, since Android tooling on the same machine is close to universal for
+anyone building a TV app.

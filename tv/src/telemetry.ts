@@ -14,7 +14,7 @@ import {API} from './api';
 
 export const report = (message: string): void => {
   try {
-    void fetch(`${API}/log?m=${encodeURIComponent(message)}`).catch(() => {});
+    fetch(`${API()}/log?m=${encodeURIComponent(message)}`).catch(() => {});
   } catch {
     // Never let the reporting channel break the thing it reports on.
   }
