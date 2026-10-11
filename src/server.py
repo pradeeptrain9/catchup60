@@ -18,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import cache, catalog, config, fixtures, mlb, recap
+from .replay import Replay
 
 
 CERT_DIR = config.CACHE / "certs"
@@ -121,8 +122,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/playable":
                 # The app asks what it can recap and gets an ordered answer:
                 # live games first, then finished ones, then the fixture.
-                return self._json(200, catalog.playable(
-                    today=query.get("date", [None])[0]))
+                games = catalog.playable(today=query.get("date", [None])[0])
+                return self._json(200, self._with_replay(games))
             if route.startswith("/recap/"):
                 return self._recap(route.removeprefix("/recap/"), query)
             if route.startswith("/audio/"):
@@ -163,10 +164,27 @@ class Handler(BaseHTTPRequestHandler):
                 cache.put(key, manifest)
         else:
             game_pk = int(who)
+            replay = getattr(self.server, "replay", None)
+            if replay is not None and replay.game_pk == game_pk and as_of is None:
+                if replay.last_index is None:
+                    # Where the real game ends, so the clock can hold there
+                    # rather than ask for at-bats the feed never had. It has
+                    # to come from the feed: taking it from the manifest this
+                    # request is about to build reads back the replay's own
+                    # cursor, which pins the clock to wherever it already is
+                    # and the recap never changes again.
+                    replay.last_index = mlb.context(game_pk).cursor
+                # The replay clock decides where "now" is. Everything
+                # downstream is unchanged: this is the same as_of a live game
+                # would produce, so the live path is genuinely exercised
+                # rather than imitated.
+                as_of = replay.cursor()
             label = f"{game_pk}-{as_of if as_of is not None else 'latest'}"
             synth = self._synth(label) if want_audio else None
             manifest = recap.from_api(game_pk, as_of=as_of,
                                       total_seconds=seconds, synth=synth)
+            if replay is not None and replay.game_pk == game_pk:
+                manifest["replay"] = replay.describe()
 
         # A filesystem path is useless to the device. Rewrite it to a URL on
         # this server, which is what the app will actually fetch.
@@ -174,6 +192,32 @@ class Handler(BaseHTTPRequestHandler):
             name = Path(manifest["audioUrl"]).name
             manifest["audioUrl"] = f"{self._base()}/audio/{label}/{name}"
         self._json(200, manifest)
+
+    def _with_replay(self, games: list[dict]) -> list[dict]:
+        """Promote the replayed game to the top and mark it live.
+
+        catalog.playable has already decided the order; this only overrides
+        the one game the replay clock is driving, so the ordering rule stays
+        in one place.
+        """
+        replay = getattr(self.server, "replay", None)
+        if replay is None:
+            return games
+        target = str(replay.game_pk)
+        rest, found = [], None
+        for game in games:
+            if game["id"] == target:
+                found = {**game, "live": True, "playable": True,
+                         "abstract": "Live", "status": "In Progress (replay)"}
+            else:
+                rest.append(game)
+        if found is None:
+            # The replayed game is not on today's slate — an old game being
+            # played back — so it is prepended rather than reordered.
+            found = {"id": target, "away": "?", "home": "?",
+                     "status": "In Progress (replay)", "abstract": "Live",
+                     "series": "Replay", "playable": True, "live": True}
+        return [found, *rest]
 
     def _synth(self, label: str):
         return recap.kokoro_synth(config.WORK / label, progress=True)
@@ -241,11 +285,13 @@ class Handler(BaseHTTPRequestHandler):
         return f"{scheme}://{host}"
 
 
-def serve(port: int = 8080, use_tls: bool = False) -> None:
+def serve(port: int = 8080, use_tls: bool = False,
+          replay: Replay | None = None) -> None:
     address = lan_address()
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     scheme = "http"
     server.is_tls = False
+    server.replay = replay
 
     if use_tls:
         cert, key = ensure_cert()
@@ -256,6 +302,10 @@ def serve(port: int = 8080, use_tls: bool = False) -> None:
         scheme = "https"
 
     print(f"catchup60 serving on port {port} ({scheme})")
+    if replay is not None:
+        print(f"  REPLAY: game {replay.game_pk} as live, "
+              f"one at-bat every {replay.seconds_per_at_bat:.0f}s, "
+              f"starting at at-bat {replay.head_start}")
     print(f"  from this Mac:        {scheme}://localhost:{port}/recap/synthetic")
     print(f"  from the Vega device: {scheme}://10.0.2.2:{port}/recap/synthetic")
     print(f"  on the LAN:           {scheme}://{address}:{port}/recap/synthetic")

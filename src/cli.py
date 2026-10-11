@@ -190,8 +190,14 @@ def cmd_synthetic(args) -> int:
 
 
 def cmd_serve(args) -> int:
+    from .replay import Replay
     from .server import serve
-    serve(port=args.port, use_tls=args.https)
+    replay = None
+    if args.replay:
+        replay = Replay(game_pk=args.replay,
+                        seconds_per_at_bat=args.replay_rate,
+                        head_start=args.replay_from)
+    serve(port=args.port, use_tls=args.https, replay=replay)
     return 0
 
 
@@ -282,6 +288,15 @@ def build_parser() -> argparse.ArgumentParser:
     server.add_argument("--port", type=int, default=8080)
     server.add_argument("--https", action="store_true",
                         help="serve over TLS; Vega's player refuses http:// audio")
+    server.add_argument("--replay", type=int, metavar="GAMEPK",
+                        help="play a finished game back as if it were live, so"
+                             " the live path runs with no live game")
+    server.add_argument("--replay-rate", type=float, default=10.0,
+                        dest="replay_rate", metavar="SECONDS",
+                        help="wall-clock seconds per at-bat (default 10)")
+    server.add_argument("--replay-from", type=int, default=20,
+                        dest="replay_from", metavar="ATBAT",
+                        help="at-bat the replay opens on (default 20)")
     server.set_defaults(fn=cmd_serve)
 
     watcher = sub.add_parser(
