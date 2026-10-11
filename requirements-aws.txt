@@ -1,7 +1,13 @@
 # AWS path: Bedrock for narration phrasing, Polly for speech.
 # Separate from requirements.txt so the engine, the manifest and the local
 # Kokoro voice all work with no AWS account and no credentials.
-anthropic==1.13.0
+#
+# No `anthropic` here. Bedrock is called through boto3's bedrock-runtime
+# converse. The Anthropic SDK's AnthropicBedrockMantle talks to an
+# Anthropic-operated gateway in front of Bedrock that is entitled separately,
+# and returned 403 for every model on an account where converse answered
+# normally on the same credentials.
+#
 # The [crt] extra is not optional in practice: credentials from `aws login`
 # come through a provider that raises MissingDependencyException without it.
 boto3[crt]==1.43.111

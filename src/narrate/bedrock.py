@@ -17,8 +17,14 @@ import os
 from .. import config
 from . import guard
 
-# Bedrock model ids carry an `anthropic.` prefix.
-MODEL = os.environ.get("CATCHUP60_BEDROCK_MODEL", "anthropic.claude-opus-5")
+# An inference profile id, not a model id. Bedrock reports every Anthropic
+# model as INFERENCE_PROFILE-only, so the id that list-foundation-models prints
+# is guaranteed to fail; the callable one carries a `us.` or `global.` prefix
+# and comes from list-inference-profiles.
+MODEL = os.environ.get(
+    "CATCHUP60_BEDROCK_MODEL",
+    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+)
 
 SYSTEM = """\
 You rewrite baseball recap lines so they sound natural read aloud on a TV.
@@ -79,10 +85,6 @@ def available() -> tuple[bool, str]:
     trip, and a recap must never block on one. A failure at call time falls back
     to the template narrator like any other rejection.
     """
-    try:
-        import anthropic  # noqa: F401
-    except ImportError:
-        return False, "anthropic not installed — pip install -r requirements-aws.txt"
     return _aws_ready()
 
 
@@ -106,28 +108,42 @@ def _region() -> str | None:
 
 
 def _client():
-    from anthropic import AnthropicBedrockMantle
+    """A plain bedrock-runtime client.
+
+    This used to be the Anthropic SDK's AnthropicBedrockMantle, which talks to
+    an Anthropic-operated gateway in front of Bedrock. That gateway is
+    entitled separately: with the use-case form on file and the model quotas
+    granted — `converse` answering "ok" on the same credentials in the same
+    second — every model through Mantle still returned 403 "is not available
+    for this account", and an unrecognised id returned 404, so the two failures
+    were distinguishable and the diagnosis was unambiguous.
+
+    So this uses the access the account actually has. It also takes the
+    anthropic SDK and its compiled pydantic-core out of the Lambda zip.
+    """
+    import boto3
     region = _region()
     if not region:
         raise RuntimeError(
             "no AWS region — aws configure set region us-east-1"
         )
-    return AnthropicBedrockMantle(aws_region=region)
+    return boto3.client("bedrock-runtime", region_name=region)
 
 
 def _ask(client, messages: list[dict]) -> list[str]:
-    """One call. Returns the rewritten lines, or raises."""
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=8192,
-        system=SYSTEM,
-        # Rewording short sentences does not need deep reasoning, and effort is
-        # the first lever on cost.
-        output_config={"effort": "low"},
-        messages=messages,
+    """One Converse call. Returns the rewritten lines, or raises."""
+    response = client.converse(
+        modelId=MODEL,
+        system=[{"text": SYSTEM}],
+        messages=[
+            {"role": m["role"], "content": [{"text": m["content"]}]}
+            for m in messages
+        ],
+        inferenceConfig={"maxTokens": 8192, "temperature": 0.2},
     )
     text = "".join(
-        block.text for block in response.content if block.type == "text"
+        block.get("text", "")
+        for block in response["output"]["message"]["content"]
     ).strip()
     # The model is told to return only JSON, but a stray fence is cheap to
     # survive and expensive to debug in a demo.

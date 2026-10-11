@@ -37,14 +37,15 @@ mkdir -p "$BUILD/tests/fixtures"
 cp tests/fixtures/*.json "$BUILD/tests/fixtures/" 2>/dev/null || true
 touch "$BUILD/tests/__init__.py"
 
-# boto3 ships in the runtime, so only httpx and anthropic are bundled. The
-# wheels must be Linux ones: anthropic pulls pydantic, whose pydantic-core is
-# compiled, and a Mac wheel in the zip fails at import with no useful message.
+# boto3 ships in the runtime and Bedrock is called through it, so httpx is the
+# only bundled dependency. The wheels are still pinned to Linux: a Mac wheel in
+# the zip fails at import with no useful message, and httpx's dependencies
+# include compiled ones.
 echo "==> fetching linux wheels"
 .venv/bin/pip install --quiet \
   --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 \
   --only-binary=:all: --target "$BUILD" \
-  httpx==0.28.1 anthropic==1.13.0
+  httpx==0.28.1
 
 find "$BUILD" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 find "$BUILD" -name '*.dist-info' -type d -prune -exec rm -rf {} + 2>/dev/null || true

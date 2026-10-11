@@ -18,7 +18,7 @@ Parameters:
     Default: catchup60/function.zip
   Narrator:
     Type: String
-    Default: template
+    Default: bedrock
     AllowedValues: [bedrock, template]
     Description: >
       Defaults to template, which costs nothing and always works. bedrock
@@ -27,7 +27,7 @@ Parameters:
       the manifest reports which narrator actually spoke.
   BedrockModel:
     Type: String
-    Default: us.anthropic.claude-opus-5
+    Default: us.anthropic.claude-haiku-4-5-20251001-v1:0
     Description: >
       An inference profile ID, not a model ID. Bedrock reports every Anthropic
       model as INFERENCE_PROFILE-only, so the ID from list-foundation-models
