@@ -225,10 +225,36 @@ def cmd_verdict(args) -> int:
     import json
 
     from . import watch
-    path = config.OUT / f"watch-{args.game_pk}.jsonl"
-    if not path.exists():
-        raise SystemExit(f"no watch file at {path} — ./run watch {args.game_pk}")
-    result = watch.verdict(path)
+
+    if args.url:
+        # The deployed watcher's record, read over plain https with no AWS
+        # credentials. That is the point of the route: the answer should be
+        # legible from a phone, which is where you are when the game ends.
+        import httpx
+        base = args.url.rstrip("/")
+        reply = httpx.get(f"{base}/watch/{args.game_pk}", timeout=30)
+        reply.raise_for_status()
+        result = reply.json()
+        if args.merge:
+            # Both records answer the same question, and neither is complete:
+            # the laptop one has the early idle ticks, the scheduled one has
+            # whatever happened after the lid closed. Merging is the honest
+            # read. Duplicate timestamps are fine — growth is counted on
+            # consecutive pairs, and a repeated count is not growth.
+            rows = httpx.get(f"{base}/watch/{args.game_pk}",
+                             params={"rows": "1"}, timeout=30).json()
+            local = config.OUT / f"watch-{args.game_pk}.jsonl"
+            if local.exists():
+                rows = rows + watch.parse(local.read_text())
+            result = watch.verdict_rows(rows)
+            result["sources"] = ["deployed", "local"]
+    else:
+        path = config.OUT / f"watch-{args.game_pk}.jsonl"
+        if not path.exists():
+            raise SystemExit(
+                f"no watch file at {path} — ./run watch {args.game_pk}, "
+                f"or --url <api> to read the deployed record")
+        result = watch.verdict(path)
     print(json.dumps(result, indent=1))
     # Non-zero while the premise is unproven, so this can gate a checklist
     # rather than be read and forgotten. Exit 2 separates "no data yet" from
@@ -318,6 +344,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     said = sub.add_parser(
         "verdict", help="read a watch file and answer what it was opened for")
+    said.add_argument("--url", default=None,
+                      help="read the deployed watcher instead of out/")
+    said.add_argument("--merge", action="store_true",
+                      help="with --url, also fold in the local watch file")
     said.add_argument("game_pk", type=int)
     said.set_defaults(fn=cmd_verdict)
 

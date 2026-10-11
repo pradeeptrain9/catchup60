@@ -36,6 +36,30 @@ Parameters:
   PollyVoice:
     Type: String
     Default: Matthew
+  WatchGames:
+    Type: String
+    Default: ''
+    Description: >
+      Comma-separated gamePks to poll on a schedule, or empty to switch the
+      schedule off. This exists because the local watcher kept dying: it idled
+      nine and a half hours against a game whose first pitch was still eight
+      hours away and then stopped with no error, almost certainly a closed lid.
+      The premise it is there to settle — whether winProbability publishes
+      during a live game or backfills at the whistle — is the one everything
+      else rests on, so it should not depend on whether a laptop stayed awake.
+  WatchRate:
+    Type: String
+    Default: rate(5 minutes)
+    Description: >
+      Five minutes resolves a feed that lags by an at-bat or two without being
+      rude to a public endpoint: about 288 ticks a day, and a tick skips the
+      winProbability call entirely until the game starts.
+
+Conditions:
+  # An empty parameter disables the rule rather than deleting the resource, so
+  # turning the watcher on for tomorrow's game is a parameter change and not a
+  # stack diff that could take the API down with it.
+  Watching: !Not [!Equals [!Ref WatchGames, '']]
 
 Resources:
   Media:
@@ -80,6 +104,12 @@ Resources:
               - Effect: Allow
                 Action: [s3:GetObject, s3:PutObject]
                 Resource: !Sub '${Media.Arn}/*'
+              - Effect: Allow
+                # The verdict route lists watch/{pk}/ to reassemble the ticks.
+                # ListBucket is granted on the bucket itself, not on /*, which
+                # is the mistake that makes a correct-looking policy deny.
+                Action: s3:ListBucket
+                Resource: !GetAtt Media.Arn
               - Effect: Allow
                 Action: polly:SynthesizeSpeech
                 Resource: '*'
@@ -150,6 +180,28 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*'
+
+  Schedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: One watch tick per game, so the record survives a closed lid.
+      ScheduleExpression: !Ref WatchRate
+      State: !If [Watching, ENABLED, DISABLED]
+      Targets:
+        - Id: tick
+          Arn: !GetAtt Function.Arn
+          # Delivered verbatim as the event. The handler treats an event with
+          # a "watch" key and no rawPath as a scheduled tick, which is what
+          # keeps this off the HTTP routing table entirely.
+          Input: !Sub '{"watch": "${WatchGames}"}'
+
+  SchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Function
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt Schedule.Arn
 
 Outputs:
   ApiUrl:

@@ -104,6 +104,26 @@ class TestVerdict:
         assert result["updatesMidGame"] is False
         assert "did NOT update" in result["verdict"]
 
+    def test_rows_are_ordered_before_growth_is_counted(self, tmp_path):
+        """Two records now feed this: the local jsonl and a scheduled Lambda
+        writing one S3 object per tick. Merging them hands the arithmetic rows
+        in arbitrary order, and growth is counted on consecutive pairs — so
+        unsorted input turns one rise into a rise and a fall."""
+        rows = [live_row("t3", 30, 29), live_row("t1", 10, 9),
+                live_row("t2", 20, 19)]
+        result = watch.verdict_rows(rows)
+        assert (result["wpPlaysFirst"], result["wpPlaysLast"]) == (9, 29)
+        assert result["timesItGrew"] == 2
+        assert result["updatesMidGame"] is True
+
+    def test_a_duplicated_tick_is_not_counted_as_growth(self, tmp_path):
+        """--merge folds both records together and the same tick can appear in
+        both. A repeat must not read as movement."""
+        rows = [live_row("t1", 10, 9), live_row("t1", 10, 9),
+                live_row("t2", 20, 19), live_row("t2", 20, 19)]
+        result = watch.verdict_rows(rows)
+        assert result["timesItGrew"] == 1
+
     def test_a_half_written_line_is_skipped_not_fatal(self, tmp_path):
         """The watcher is killed with ^C or a closed laptop; the last line is
         often a fragment. Losing the whole record to it would be absurd."""

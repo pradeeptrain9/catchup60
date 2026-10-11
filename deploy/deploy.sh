@@ -73,7 +73,15 @@ rm -f "$ZIP"
 tpl_default() {
   awk -v key="  $1:" '
     $0 == key {found = 1; next}
-    found && /^    Default:/ {sub(/^    Default: */, ""); gsub(/^"|"$/, ""); print; exit}
+    found && /^    Default:/ {
+      sub(/^    Default: */, "")
+      # Strip both quote styles. An empty YAML default is written as two
+      # single quotes, and stripping only double quotes returned those two
+      # literal characters rather than nothing. Not empty is not harmless
+      # here: it would switch the watch schedule ON with a nonsense game list.
+      gsub(/^\042|\042$/, ""); gsub(/^\047|\047$/, "")
+      print; exit
+    }
     found && /^  [A-Za-z]/ {exit}
   ' deploy/template.yaml
 }
@@ -81,9 +89,14 @@ tpl_default() {
 NARRATOR="${CATCHUP60_NARRATOR:-$(tpl_default Narrator)}"
 MODEL="${CATCHUP60_BEDROCK_MODEL:-$(tpl_default BedrockModel)}"
 VOICE="${CATCHUP60_POLLY_VOICE:-$(tpl_default PollyVoice)}"
+# Empty by default, which leaves the schedule DISABLED. Set it to the games
+# worth watching: CATCHUP60_WATCH=849809,849812 ./deploy/deploy.sh
+WATCH="${CATCHUP60_WATCH:-$(tpl_default WatchGames)}"
+RATE="${CATCHUP60_WATCH_RATE:-$(tpl_default WatchRate)}"
 : "${NARRATOR:?could not read Narrator default from template}"
 : "${MODEL:?could not read BedrockModel default from template}"
 echo "==> narrator=$NARRATOR model=$MODEL voice=$VOICE"
+echo "==> watching=${WATCH:-<off>} rate=$RATE"
 
 echo "==> deploying stack $STACK"
 aws cloudformation deploy \
@@ -97,7 +110,9 @@ aws cloudformation deploy \
     "CodeKey=$CODE_KEY" \
     "Narrator=$NARRATOR" \
     "BedrockModel=$MODEL" \
-    "PollyVoice=$VOICE"
+    "PollyVoice=$VOICE" \
+    "WatchGames=$WATCH" \
+    "WatchRate=$RATE"
 
 # CloudFormation updates the function's *code location*, not its code: the key
 # is unchanged, so the resource has no diff and the old zip keeps serving.
@@ -119,4 +134,7 @@ echo
 echo "    $URL"
 echo
 echo "    curl -s $URL/playable | python3 -m json.tool | head"
+if [ -n "$WATCH" ]; then
+  echo "    ./run verdict ${WATCH%%,*} --url $URL"
+fi
 echo "    tv/src/api.ts: set HOST to the host in that URL"

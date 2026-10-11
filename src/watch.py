@@ -106,16 +106,38 @@ def watch(game_pk: int, *, every: float = 60.0, hours: float = 26.0,
     return dest
 
 
-def verdict(path: Path) -> dict:
-    """Read a watch file and answer the question it was opened to answer."""
+def parse(text: str) -> list[dict]:
+    """Rows out of jsonl, skipping anything unreadable.
+
+    The last line of a watch file is routinely a fragment — the watcher is
+    killed with ^C, or the laptop closes mid-write. Losing the whole record to
+    it would be absurd.
+    """
     rows = []
-    for line in path.read_text().splitlines():
+    for line in text.splitlines():
         if line.strip():
             try:
                 rows.append(json.loads(line))
             except json.JSONDecodeError:
                 continue
+    return rows
 
+
+def verdict(path: Path) -> dict:
+    """Read a watch file and answer the question it was opened to answer."""
+    return verdict_rows(parse(path.read_text()))
+
+
+def verdict_rows(rows: list[dict]) -> dict:
+    """The arithmetic, separated from where the rows came from.
+
+    Two watchers now feed this: the local one writing jsonl, and a scheduled
+    Lambda writing one object per tick to S3. The question is the same either
+    way, and there must be exactly one implementation of the answer — a second
+    copy in the handler is a copy that disagrees with this one on the morning
+    it matters.
+    """
+    rows = sorted(rows, key=lambda r: r.get("at") or "")
     live = [r for r in rows if r.get("state") == "Live" and "wpPlays" in r]
     counts = [r["wpPlays"] for r in live]
     grew = sum(1 for a, b in zip(counts, counts[1:]) if b > a)

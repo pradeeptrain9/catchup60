@@ -30,7 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src import cache, catalog, config, fixtures, mlb, recap  # noqa: E402
+from src import cache, catalog, config, fixtures, mlb, recap, watch  # noqa: E402
 
 BUCKET = os.environ["CATCHUP60_BUCKET"]
 # Long enough for a viewer to start a recap and let it finish, short enough
@@ -117,6 +117,67 @@ def sign(manifest: dict) -> dict:
     return manifest
 
 
+# --- the watcher ------------------------------------------------------------
+
+# One object per tick rather than appending to a jsonl. S3 has no append, so
+# the alternative is read-modify-write, and the one thing a record kept to
+# settle a disputed premise must never do is lose rows to a lost race. A
+# prefix listing reassembles them in order, and the key is the timestamp, so a
+# retried invocation overwrites its own row instead of double-counting it.
+def _watch_key(game_pk: int, at: str) -> str:
+    return f"watch/{game_pk}/{at}.json"
+
+
+def watch_tick(game_pks: list[int]) -> dict:
+    """One observation per game, from the schedule rather than a laptop.
+
+    The local watcher died at nine and a half hours with no error, almost
+    certainly because the lid closed. This path has no lid.
+    """
+    wrote = {}
+    for game_pk in game_pks:
+        row = watch.tick(game_pk)
+        at = row.get("at", "unknown")
+        try:
+            s3().put_object(
+                Bucket=BUCKET, Key=_watch_key(game_pk, at),
+                Body=json.dumps(row).encode(),
+                ContentType="application/json",
+            )
+            wrote[game_pk] = row.get("state", "?")
+        except Exception as exc:
+            wrote[game_pk] = f"put failed: {type(exc).__name__}: {exc}"
+        # Visible in CloudWatch without reading the bucket, which is how you
+        # check on this at 1am from a phone.
+        print(f"[watch] {game_pk} {at} state={row.get('state')} "
+              f"cursor={row.get('cursor')} wpPlays={row.get('wpPlays')} "
+              f"lag={row.get('lag')}"
+              + (f" {row['error']}" if row.get("error") else ""))
+    return wrote
+
+
+def watch_rows(game_pk: int) -> list[dict]:
+    """Every tick recorded for a game, oldest first."""
+    rows = []
+    token = None
+    while True:
+        kwargs = {"Bucket": BUCKET, "Prefix": f"watch/{game_pk}/"}
+        if token:
+            kwargs["ContinuationToken"] = token
+        page = s3().list_objects_v2(**kwargs)
+        for item in page.get("Contents", []):
+            try:
+                body = s3().get_object(Bucket=BUCKET, Key=item["Key"])
+                rows.append(json.loads(body["Body"].read()))
+            except Exception:
+                # A row that will not parse is a row the verdict can live
+                # without; refusing to answer at all because of one is worse.
+                continue
+        if not page.get("IsTruncated"):
+            return rows
+        token = page.get("NextContinuationToken")
+
+
 # --- routes ------------------------------------------------------------------
 
 def _reply(status: int, payload) -> dict:
@@ -187,6 +248,16 @@ def _recap(who: str, query: dict) -> dict:
 
 
 def handler(event, context=None):
+    # A scheduled invocation, not an HTTP one. EventBridge delivers the rule's
+    # Input verbatim, so the games to poll travel in the event rather than in
+    # an environment variable — changing which games are watched is then a
+    # template parameter, not a redeploy of the function.
+    if "watch" in event and "rawPath" not in event:
+        pks = event["watch"]
+        if isinstance(pks, str):
+            pks = [p for p in (x.strip() for x in pks.split(",")) if p]
+        return watch_tick([int(p) for p in pks])
+
     route = (event.get("rawPath") or "/").rstrip("/") or "/"
     query = event.get("queryStringParameters") or {}
     try:
@@ -194,7 +265,8 @@ def handler(event, context=None):
             return _reply(200, {
                 "service": "catchup60",
                 "routes": ["/playable", "/games", "/recap/{gamePk}",
-                           "/recap/synthetic", "/log?m="],
+                           "/recap/synthetic", "/watch/{gamePk}",
+                           "/log?m="],
             })
         if route == "/log":
             # The device's only way to say what it rendered. The local server
@@ -208,6 +280,14 @@ def handler(event, context=None):
             return _reply(200, mlb.schedule(date=query.get("date")))
         if route == "/playable":
             return _reply(200, catalog.playable(today=query.get("date")))
+        if route.startswith("/watch/"):
+            game_pk = int(route.removeprefix("/watch/"))
+            rows = watch_rows(game_pk)
+            if query.get("rows") in ("1", "true"):
+                return _reply(200, rows)
+            # The verdict arithmetic is src/watch.py's, not a second copy
+            # here. Two implementations of this answer is two answers.
+            return _reply(200, watch.verdict_rows(rows))
         if route.startswith("/recap/"):
             return _recap(route.removeprefix("/recap/"), query)
         return _reply(404, {"error": f"no route {route}"})
