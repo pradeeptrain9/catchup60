@@ -16,6 +16,7 @@ import {
   type Manifest,
 } from './api';
 import {GameList} from './components/GameList';
+import {report} from './telemetry';
 import {RecapPlayer} from './components/RecapPlayer';
 
 type Screen =
@@ -32,6 +33,12 @@ export const App = () => {
     setScreen({name: 'loading'});
     try {
       const games = await fetchPlayable();
+      report(
+        `games ${games.length}: ` +
+          games
+            .map((g) => `${g.away}@${g.home}[${g.live ? 'LIVE' : g.abstract}]`)
+            .join(' '),
+      );
       setScreen({name: 'games', games});
     } catch (error: any) {
       setScreen({
@@ -48,8 +55,16 @@ export const App = () => {
 
   const pick = useCallback(async (game: Game) => {
     setScreen({name: 'building', game});
+    report(`pick ${game.id} ${game.away}@${game.home} live=${game.live}`);
     try {
       const manifest = await fetchRecap(game.id);
+      report(
+        `recap ${manifest.gamePk} cursor=${manifest.asOfPlayIndex} ` +
+          `${manifest.gameState.away}-${manifest.gameState.home} ` +
+          `${manifest.gameState.half}${manifest.gameState.inning} ` +
+          `segs=${manifest.segments.length} ${manifest.totalSeconds}s ` +
+          `timing=${manifest.timingSource} audio=${manifest.audioUrl ? 'yes' : 'no'}`,
+      );
       setScreen({name: 'recap', game, manifest});
     } catch (error: any) {
       // "No plays yet" is not a failure, so it reads as information and the
@@ -58,6 +73,7 @@ export const App = () => {
         error instanceof NotStarted
           ? `${error.message}`
           : `${error?.message ?? error}`;
+      report(`error ${message}`);
       setScreen({name: 'error', message, games: null});
     }
   }, []);

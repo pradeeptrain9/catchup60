@@ -43,10 +43,22 @@ TOTAL_SECONDS = 60.0
 INTRO_SECONDS = 5.0
 OUTRO_SECONDS = 4.0
 
-# Speech rate for the pre-synthesis budget pass. Lifted from shorts-factory and
-# confirmed here against rendered audio: 150 words of narration measured 57.49s
-# of speech, or 2.61 words/sec.
-WORDS_PER_SECOND = 2.6
+# Speech rate for the pre-synthesis budget pass. 2.6 came from shorts-factory
+# and from one early measurement of a whole recap. Measured again across 18
+# rendered segments it is wrong in the dangerous direction: real speech runs
+# 2.28 words/sec, so the estimate was 14% low and a recap packed to 60s
+# rendered at 63.9s on the device — past the one promise the product makes.
+#
+# Play descriptions are what drag it down. Proper names and fielding
+# sequences ("grounds into a double play, first baseman to shortstop to...")
+# read slower than ordinary prose, while the short generic outro runs at 3.16.
+# A single constant cannot be right for both, and it is also voice-dependent:
+# this is Kokoro at SPEED 1.05, where Polly differs again.
+#
+# So this is now set to the measured rate rather than the average one, and it
+# is no longer load-bearing: recap.build enforces the budget against the
+# rendered audio and trims if the estimate still missed.
+WORDS_PER_SECOND = 2.28
 
 # Headroom for per-segment variance. The rate above is accurate in aggregate but
 # not per sentence — short lines synthesize faster per word than long ones

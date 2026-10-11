@@ -213,8 +213,21 @@ class Handler(BaseHTTPRequestHandler):
                 rest.append(game)
         if found is None:
             # The replayed game is not on today's slate — an old game being
-            # played back — so it is prepended rather than reordered.
-            found = {"id": target, "away": "?", "home": "?",
+            # played back — so it is prepended rather than reordered, and its
+            # names come from the feed. Falling back to "?" put a nameless row
+            # at the top of the list, which is the one row the viewer is most
+            # likely to pick.
+            try:
+                context = mlb.context(replay.game_pk)
+                # The same names the recap header will show a moment later.
+                # The schedule endpoint returns full club names and the feed
+                # returns short ones, so this row cannot match both; matching
+                # the screen the viewer lands on beats matching the rows they
+                # are about to leave.
+                away, home = context.away_name, context.home_name
+            except mlb.FeedError:
+                away = home = "?"
+            found = {"id": target, "away": away, "home": home,
                      "status": "In Progress (replay)", "abstract": "Live",
                      "series": "Replay", "playable": True, "live": True}
         return [found, *rest]

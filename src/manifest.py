@@ -70,6 +70,7 @@ def build(
     runs_total: int = 0,
     speech_skipped: str | None = None,
     fallback_reason: str | None = None,
+    trimmed_after_synthesis: int = 0,
 ) -> dict:
     """Stamp absolute timings onto segments and assemble the manifest."""
     if durations is not None and len(durations) != len(segments):
@@ -124,6 +125,11 @@ def build(
             "budgetSeconds": pack_result.budget_seconds,
             "limitedBy": pack_result.limited_by,
             "capReached": pack_result.cap_reached,
+            # Plays the estimator thought would fit and the rendered audio
+            # proved would not. Non-zero means the word-rate constant is
+            # drifting for this voice and is worth re-measuring, so it is
+            # reported rather than quietly absorbed.
+            "trimmedAfterSynthesis": trimmed_after_synthesis,
             # Surfaced rather than buried: when the budget forces a run out of
             # the recap, the viewer sees a score they were not shown earning.
             "runsExplained": runs_explained,

@@ -5,6 +5,7 @@ checks, and only then would speech be synthesized. Synthesis sits downstream of
 the guard so audio can never say a number the text was not allowed to.
 """
 
+from dataclasses import replace
 from typing import Callable
 
 from . import cache, config, manifest, mlb
@@ -97,6 +98,7 @@ def build(
     durations: list[float] | None = None
     audio_url: str | None = None
     speech_skipped: str | None = None
+    trimmed = 0
     if synth is not None:
         if violations:
             # Narration that failed the guard is never spoken. Falling back to
@@ -105,8 +107,36 @@ def build(
             # figure read aloud is worse than a recap with no audio.
             speech_skipped = "narration failed the numeric guard"
         else:
-            audio_path, durations = synth(segments)
-            audio_url = str(audio_path)
+            # The budget is enforced against measured audio, not against the
+            # estimate that chose the plays. estimate_seconds is a word count
+            # over a constant rate and it runs systematically low on play
+            # descriptions — proper names and fielding sequences read slower
+            # than the average sentence. On the first device run that put a
+            # 63.9s recap behind a 60-second promise. Measuring and then
+            # trimming costs a re-synthesis in the rare case; promising sixty
+            # seconds and delivering sixty-four costs the product's one claim.
+            while True:
+                audio_path, durations = synth(segments)
+                if (sum(durations) <= total_seconds
+                        or len(result.plays) <= 1):
+                    break
+                weakest = min(range(len(result.plays)),
+                              key=lambda i: result.plays[i].swing)
+                kept = [p for i, p in enumerate(result.plays) if i != weakest]
+                result = replace(result, plays=kept)
+                trimmed += 1
+                segments = script.build_segments(context, state, kept, finished)
+                payload = manifest.engine_payload(context, state, kept, plays)
+                violations = guard.check_segments(segments, payload)
+                if violations:
+                    # The template narrator cannot fail this, so reaching here
+                    # means the model's text is being re-checked against a
+                    # smaller payload and no longer clears it. Silence beats a
+                    # figure the engine no longer supports.
+                    speech_skipped = "narration failed the numeric guard"
+                    durations = None
+                    break
+            audio_url = str(audio_path) if durations is not None else None
 
     deltas = packer.runs_on_each_play(plays)
     selected = {p.index for p in result.plays}
@@ -125,6 +155,7 @@ def build(
         speech_skipped=speech_skipped,
         runs_explained=sum(deltas[i] for i in selected),
         runs_total=plays[-1].away_score + plays[-1].home_score,
+        trimmed_after_synthesis=trimmed,
     )
 
 

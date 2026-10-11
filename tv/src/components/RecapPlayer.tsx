@@ -12,6 +12,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Animated, Pressable, StyleSheet, Text, View} from 'react-native';
 
 import {audioUrl, type Manifest} from '../api';
+import {report} from '../telemetry';
 
 type Props = {
   manifest: Manifest;
@@ -48,11 +49,15 @@ export const RecapPlayer = ({manifest, onAgain, onBack}: Props) => {
         setTimeout(() => {
           setPosition(index);
           animateIn();
+          report(`card ${index} ${segment.kind} @${segment.start}s`);
         }, segment.start * 1000),
       );
     });
     timers.current.push(
-      setTimeout(() => setFinished(true), manifest.totalSeconds * 1000),
+      setTimeout(() => {
+        setFinished(true);
+        report(`done ${manifest.segments.length} cards in ${manifest.totalSeconds}s`);
+      }, manifest.totalSeconds * 1000),
     );
 
     // Audio rides along where the platform supports it. Its failure is
