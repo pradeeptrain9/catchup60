@@ -61,6 +61,30 @@ aws s3api head-bucket --bucket "$CODE_BUCKET" --region "$REGION" 2>/dev/null || 
 aws s3 cp "$ZIP" "s3://$CODE_BUCKET/$CODE_KEY" --region "$REGION" >/dev/null
 rm -f "$ZIP"
 
+# Every parameter is passed explicitly, with its default read out of the
+# template rather than repeated here.
+#
+# Both halves of that matter. Repeating the defaults in this script meant two
+# places to change, and one of them stayed on a model the account was never
+# granted. Omitting them instead does not help: `aws cloudformation deploy`
+# sends UsePreviousValue for anything it is not given, so a parameter keeps
+# whatever the last deploy set forever and CloudFormation truthfully reports
+# "No changes to deploy" while serving the old value.
+tpl_default() {
+  awk -v key="  $1:" '
+    $0 == key {found = 1; next}
+    found && /^    Default:/ {sub(/^    Default: */, ""); gsub(/^"|"$/, ""); print; exit}
+    found && /^  [A-Za-z]/ {exit}
+  ' deploy/template.yaml
+}
+
+NARRATOR="${CATCHUP60_NARRATOR:-$(tpl_default Narrator)}"
+MODEL="${CATCHUP60_BEDROCK_MODEL:-$(tpl_default BedrockModel)}"
+VOICE="${CATCHUP60_POLLY_VOICE:-$(tpl_default PollyVoice)}"
+: "${NARRATOR:?could not read Narrator default from template}"
+: "${MODEL:?could not read BedrockModel default from template}"
+echo "==> narrator=$NARRATOR model=$MODEL voice=$VOICE"
+
 echo "==> deploying stack $STACK"
 aws cloudformation deploy \
   --template-file deploy/template.yaml \
@@ -71,9 +95,9 @@ aws cloudformation deploy \
   --parameter-overrides \
     "CodeBucket=$CODE_BUCKET" \
     "CodeKey=$CODE_KEY" \
-    "Narrator=${CATCHUP60_NARRATOR:-bedrock}" \
-    "BedrockModel=${CATCHUP60_BEDROCK_MODEL:-us.anthropic.claude-opus-5}" \
-    "PollyVoice=${CATCHUP60_POLLY_VOICE:-Matthew}"
+    "Narrator=$NARRATOR" \
+    "BedrockModel=$MODEL" \
+    "PollyVoice=$VOICE"
 
 # CloudFormation updates the function's *code location*, not its code: the key
 # is unchanged, so the resource has no diff and the old zip keeps serving.
