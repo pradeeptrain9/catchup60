@@ -25,32 +25,134 @@ Do not crop or soften this. A judge who spots undisclosed dubbing stops
 believing the rest of the demo, and the limitation is Amazon's, not ours — it is
 already written up as product feedback.
 
-## Shot list
+## The shape of the cut
 
-| Time | Shot | Point being made |
+Lead with the product working, not with how it works. The recap plays inside
+the first minute; everything explaining it comes after a judge has already
+seen it.
+
+The spine is one claim — **the recap is different every time you ask** — and
+one defence of it: **that is possible because nothing about it is pre-made,
+and trustworthy because no model decides what mattered.**
+
+Three minutes is the cap. This cut runs about 2:50.
+
+| Time | On screen | Voiceover |
 |---|---|---|
-| 0:00–0:12 | Split screen: simulator on the left, terminal playing the mp3 on the right, waveform visible | The audio is ours and it is the same track. Carries the disclosure caption. |
-| 0:12–0:22 | Game list on the simulator: a live or final game, a scheduled one dimmed, the fixture | Real schedule data, and scheduled games are shown but not offered |
-| 0:22–1:20 | Press **Catch Up**. The recap plays: card per play, progress bar, run coverage in the footer | The product. Narration under it. |
-| 1:20–1:35 | Terminal: `./run recap <pk> --as-of N --summary` on the same game at two cursors, side by side | The recap is rebuilt from the feed, not canned |
-| 1:35–2:00 | `src/engine/rank.py` and `pack.py` on screen while explaining win-probability ranking and run coverage | The engine computes importance; the model never decides it |
-| 2:00–2:25 | `narrate/guard.py` plus the failing-guard test | Every spoken figure is checked against engine output |
-| 2:25–2:50 | `pytest` green, then the `limitedBy` / `runsExplained` fields in a manifest | It reports its own shortfalls |
+| 0:00–0:10 | Game list on the simulator. Disclosure caption up for its first 4s. | "You sit down forty minutes into a game. The score says 7–4 and you have no idea how it got there." |
+| 0:10–0:18 | Cursor on the live row; the dimmed scheduled game visible below. | "Catch-Up 60 is one button on Fire TV. Live games first. Scheduled ones are shown but not offered — there is nothing to recap yet." |
+| 0:18–1:08 | **Press Catch Up.** Cards play through, narration under. Footer counter visible. | *Silent.* Let the recap play. |
+| 1:08–1:18 | Footer in close-up: `5 of 5 runs · 5 of 26 plays`. | "Five plays, and every run on the board accounted for. When sixty seconds will not fit everything, it says so rather than quietly dropping a run." |
+| 1:18–1:40 | Back to the list. Press **Catch Up** on the *same game* again. New cards, new score. Cut the two headers side by side. | "Ask again a few minutes later and it is a different recap — because it is built from the live feed at the moment you press it. Nothing here is pre-made." |
+| 1:40–2:05 | `src/engine/rank.py`, then a manifest's `engine` block. | "Which plays mattered is computed, never asked of a model. Baseball publishes how much each at-bat moved the game. Ranking is arithmetic on that number." |
+| 2:05–2:25 | `narrate/guard.py`, then a terminal run showing `narrationSource: bedrock` and `guardViolations: []`. | "Claude rewrites the lines so they read well aloud. Then every number it wrote is checked against the engine's own figures. One unsupported digit and the recap falls back to the plain wording — and the manifest records that it did." |
+| 2:25–2:45 | On the simulator: press the source switch to **AWS**, pick a game, recap arrives. | "The same app, pointed at the deployed version. Lambda, Bedrock, Polly, S3. Three seconds from press to recap." |
+| 2:45–2:55 | Repo URL and the two GitHub links. | "Sixty seconds, built when you ask for it, and honest about what it left out." |
 
-## Producing the assets
+### If a live game is available on recording day
+
+Swap the 1:18 shot for a genuinely live game and say "live right now" instead
+of "a few minutes later". That is the stronger version. The replay clock below
+exists so the shot is rehearsable and repeatable when no game is on — which,
+in a three-day editing window, is most of the time.
+
+## Capture runbook
+
+Everything below is scripted so the take can be repeated without hunting for
+the same game state.
+
+**1. Start the device and both listeners.**
 
 ```bash
-./run serve --port 8080
+source ~/vega/env && vega virtual-device start --display-res=1920,1080
+```
+
+```bash
+adb kill-server
+```
+
+The second one is not optional on a machine with Android tooling: an adb
+server scanning emulator ports takes the VVD down mid-take (`FRICTION.md` 14).
+
+**2. Serve a game that advances while you film.**
+
+```bash
+./run serve --port 8080 --replay 849832 --replay-rate 8 --replay-from 28
+```
+
+```bash
 ./run serve --port 8443 --https
 ```
 
+The rate is not arbitrary. About 75 seconds of real time passes between the
+two Catch Up presses — the recap itself runs ~50s, plus navigating back — and
+the second recap has to be *visibly* different on camera, not subtly. On this
+game:
+
+| at-bat | score | inning | plays shown |
+|---|---|---|---|
+| 28 | 0–2 | top 4 | 7 |
+| 31 | 0–2 | bottom 4 | 7 |
+| 34 | 1–2 | top 5 | 6 |
+| 37 | 3–2 | top 5 | 5 |
+
+Three at-bats apart changes only the inning, which reads as a glitch rather
+than a different recap. Nine apart changes the score by three runs, the
+inning, and the number of cards. At 8 seconds an at-bat, 75 seconds of filming
+covers exactly that: start at 28, press again around 37.
+
+**3. Install and launch.**
+
 ```bash
-./run recap 849832 --audio --summary --out demo-manifest.json
+cd tv && npm run build:release && cd .. && vega device install-app --device VirtualDevice --packagePath "$PWD/tv/build/aarch64-release/catchup60_aarch64.vpkg" && vega device launch-app --device VirtualDevice --appName com.pradeepkonda.catchup60.main
 ```
 
-The mp3 lands in `cache/work/<gamePk>-latest/narration.mp3`. That is the file to
-lay under the capture. Its length is the manifest's `totalSeconds`, so align the
-start of the audio to the first card appearing and nothing else needs nudging.
+**4. Drive it.** The simulator takes no remote key presses (`FRICTION.md` 13),
+so taps go through the console helper. Coordinates are in the 1920×1080 frame.
+
+```bash
+./tools/vvd tap 900 332
+```
+
+That is the top row. The source switch is the last row; take a screenshot
+first and read its position off that, because it moves with the number of
+games on the slate:
+
+```bash
+./tools/vvd shot /tmp/frame.png
+```
+
+**5. Pull the narration track for the edit.**
+
+One track per press. For the first one, filmed at at-bat 28:
+
+```bash
+./run recap 849832 --as-of 28 --audio --voice polly-ssml --narrator bedrock --summary --out out/demo-manifest-28.json
+```
+
+The mp3 lands in `cache/work/849832-28/narration.mp3`. Align its start to the
+first card appearing; the manifest's segment timings came from that same file,
+so nothing else needs nudging.
+
+**Use the `--as-of` you actually filmed.** Read it off the screen recording —
+the app reports it, and the server log prints it — because a track from a
+different cursor is a different script and will drift against the cards
+immediately.
+
+## Terminal shots worth having
+
+For 1:40–2:25, these produce clean output to film rather than scrolling source:
+
+```bash
+./run recap 849832 --as-of 39 --narrator bedrock --summary
+```
+
+```bash
+./.venv/bin/python -m pytest tests/ -q
+```
+
+Showing `narrationSource: bedrock` beside `guardViolations: []` makes the
+guard point in one frame. `140 passed` makes the second.
 
 ## What not to include
 
@@ -58,3 +160,12 @@ No team logos, no game footage, no commercial music — the rules forbid them an
 we have no licence. Team identity stays as text. If a shot needs to avoid real
 club names entirely, use the committed fixture game (Harbor Gulls at Cedar
 Foxes), which is fictional for exactly this reason.
+
+## Before uploading
+
+- Disclosure caption legible for its full 4 seconds, and repeated in the
+  description
+- Under 3:00
+- Public, not unlisted
+- No credentials, account ids or presigned URLs visible in any terminal frame —
+  check the AWS shot at 2:25 especially
