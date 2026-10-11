@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Drive the Vega Virtual Device: press remote keys, take screenshots.
+#
+# The Vega CLI has no way to inject a key press and no way to capture the
+# screen, so verifying the TV app meant watching the window and pressing keys
+# by hand — which is not verification, and is impossible to put in a test.
+#
+# The VVD is an Android-emulator-derived QEMU and it exposes the standard
+# emulator console on port 5556, authenticated by the token the emulator wrote
+# to ~/.emulator_console_auth_token. That console has `event send` and
+# `screenrecord screenshot`. Everything below is those two commands.
+#
+# Key injection does not work, and fails silently: `event send EV_KEY:...`
+# is accepted and answered OK, and nothing reaches the app. Vega OS is not
+# Android, so the console's key path has nowhere to deliver to. `event mouse`
+# does route, so `tap` is how this drives the UI — a Pressable answers a touch
+# the same way it answers a select.
+#
+# Usage:
+#   tools/vvd tap X Y              # 1920x1080 frame; this is the working one
+#   tools/vvd key ENTER|UP|DOWN    # accepted by the console, does nothing
+#   tools/vvd shot [path.png]
+#   tools/vvd console "<raw console command>"
+set -euo pipefail
+
+PORT="${VVD_CONSOLE_PORT:-5556}"
+TOKEN_FILE="${VVD_TOKEN_FILE:-$HOME/.emulator_console_auth_token}"
+[ -r "$TOKEN_FILE" ] || { echo "no console token at $TOKEN_FILE" >&2; exit 1; }
+
+console() {
+  # The token never reaches the command line, so it stays out of `ps` and out
+  # of any shell history.
+  { printf 'auth %s\n' "$(cat "$TOKEN_FILE")"; printf '%s\n' "$@"; \
+    printf 'quit\n'; } | nc -w 5 127.0.0.1 "$PORT" 2>/dev/null
+}
+
+case "${1:-}" in
+  tap)
+    x="${2:?x}"; y="${3:?y}"
+    console "event mouse $x $y 0 1" "event mouse $x $y 0 0" >/dev/null
+    ;;
+  key)
+    # Press and release. Sending only the press leaves the key held down, and
+    # the next press is then swallowed.
+    code="KEY_${2:?which key}"
+    console "event send EV_KEY:${code}:1" "event send EV_KEY:${code}:0" \
+      >/dev/null
+    ;;
+  text)   console "event text ${2:?what text}" >/dev/null ;;
+  shot)
+    dest="${2:-$PWD/out/vvd-$(date +%H%M%S).png}"
+    dir="$(dirname "$dest")"
+    mkdir -p "$dir"
+    # The console writes into a directory and names the file itself, so the
+    # newest png in there afterwards is ours.
+    before="$(ls -t "$dir"/*.png 2>/dev/null | head -1 || true)"
+    console "screenrecord screenshot $dir" >/dev/null
+    after="$(ls -t "$dir"/*.png 2>/dev/null | head -1 || true)"
+    [ -n "$after" ] && [ "$after" != "$before" ] || {
+      echo "no screenshot produced" >&2; exit 1; }
+    [ "$after" = "$dest" ] || mv "$after" "$dest"
+    echo "$dest"
+    ;;
+  console) console "${2:?command}" ;;
+  *) sed -n '/^# Usage:/,/^set -e/p' "$0" | sed 's/^# \{0,1\}//;$d' ;;
+esac

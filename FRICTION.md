@@ -498,3 +498,76 @@ Failing that, three cheap fixes: put the form's URL in the error that names
 the form; have the retired Model access page link the form instead of
 describing it; and make `list-foundation-models` return the inference-profile
 ID that actually works rather than an ID that is guaranteed to fail.
+
+
+---
+
+## 13. The virtual device cannot be driven or seen from the Vega CLI
+
+**Task:** Verify that the TV app renders correctly on the Vega Virtual Device.
+
+**Steps:** `vega device --help`, looking for a screenshot command and a way to
+send a remote key press.
+
+**Expected:** Both. An emulator you cannot photograph and cannot press is an
+emulator you can only watch.
+
+**What happened:** `vega device` has twenty-odd subcommands — install, launch,
+logs, shell, port forwarding, crash reports — and neither of those two. So
+verifying the app meant sitting in front of the window pressing keys by hand,
+which is not verification and cannot go in a test. A four-second overrun past
+a sixty-second promise looks exactly like a correct recap from across the room.
+
+**Workaround:** the VVD is an Android-emulator-derived QEMU and it exposes the
+standard Android emulator console on port 5556, authenticated with the token
+in `~/.emulator_console_auth_token`. From there `screenrecord screenshot`
+works, which is how this project got its first real look at its own UI.
+
+`event send EV_KEY:KEY_CENTER:1` does not. It is **accepted and answered
+`OK`** and nothing reaches the app — the console inherits Android's key path
+and Vega OS is not Android, so the command has nowhere to deliver and says so
+to no one. Several minutes went into believing the app had a focus bug.
+`event mouse` does route, so a touch tap at the card's coordinates presses it,
+which is how the app is driven in `tools/vvd`.
+
+**Severity:** Major. This is the difference between an app you have tested and
+an app you have watched.
+
+**Suggestion:** `vega device screenshot` and `vega device key <KEY>` as
+first-class commands. Failing that, two smaller things: have the emulator
+console reject the key commands it cannot deliver instead of answering `OK`,
+and document that `event mouse` is the working input path.
+
+---
+
+## 14. The virtual device is killed by an unrelated `adb` server
+
+**Task:** Keep the VVD alive long enough to install, launch and watch a
+sixty-second recap.
+
+**Steps:** `vega virtual-device start`, then work for ten minutes.
+
+**Expected:** It stays up until stopped.
+
+**What happened:** It died repeatedly, within minutes, every time.
+`vega virtual-device status` reported `{"running":false,"process_ids":
+{"qemu":-1}}` and `vega device list` reported "No devices found". Nothing was
+written to `virtual_device.log` beyond the launch line — no shutdown, no
+crash, no reason. Every later command failed with "Device not found: Cannot
+find an instance of Vega Virtual Device, launch the virtual device and try
+again", which reads like you forgot to start it.
+
+Running it from a shell that stayed open did not help, so it was not process
+cleanup. The cause was an `adb` server running for an unrelated Android
+project: the VVD takes emulator ports 5556/5557, `adb` scans 5554-5584 looking
+for Android emulators, finds a QEMU that is not one, and the VVD dies.
+`adb kill-server` fixed it completely — the device has been up ever since.
+
+**Severity:** Major. Android tooling on the same machine is close to universal
+for anyone building a TV app, the two never mention each other, and nothing in
+the failure points at the cause.
+
+**Suggestion:** Pick ports outside adb's scan range, or refuse adb's probe
+rather than dying on it. At minimum, log *something* when the device goes
+down, and have "Device not found" say that the device was running and stopped
+rather than implying it was never started.
