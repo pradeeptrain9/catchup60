@@ -46,6 +46,13 @@ AGAIN_X=710; AGAIN_Y=705      # "Catch up again" on the end card
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*" >&2; }
 
+lufs() {
+  # Integrated loudness. Peak and mean dB say almost nothing about whether two
+  # tracks will sit right together; LUFS is the measure that does.
+  ffmpeg -i "$1" -af ebur128=framelog=quiet -f null /dev/null 2>&1 \
+    | grep -A4 "Integrated loudness" | grep -oE "I:\s+[-0-9.]+ LUFS" | tail -1
+}
+
 wait_for_recap() {
   # Block until the device reports another finished recap. The app logs
   # "done N cards in Xs" to the server, so the record of what happened is the
@@ -197,14 +204,18 @@ vo)
   dest="$OUT/$name.m4a"
   cp "$src" "$dest"
   dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$dest")
-  vol=$(ffmpeg -i "$dest" -af volumedetect -f null /dev/null 2>&1 \
-        | grep -oE "(mean|max)_volume: [-0-9.]*" | tr '\n' ' ')
   echo "  $dest"
-  printf '  %.1fs  %s\n' "$dur" "$vol"
-  # Narration sits near -24 dB mean. A voiceover quieter than that will be
-  # fighting the app's own audio in the mix rather than leading it.
-  awk -v v="$(echo "$vol" | grep -o 'mean_volume: [-0-9.]*' | cut -d' ' -f2)" \
-    'BEGIN { if (v < -26) print "  quieter than the narration (-24 dB) — consider moving closer or re-taking" }'
+  printf '  %.1fs raw, %s\n' "$dur" "$(lufs "$dest")"
+
+  # Normalised alongside the raw take, never over it. Takes recorded across
+  # different sessions drift in level, and a mix assembled from them has the
+  # voiceover rising and falling against an app narration that is rock steady
+  # at about -22 LUFS. -16 is the usual target for speech-led web video and
+  # leaves the voiceover clearly leading rather than competing.
+  norm="${dest%.m4a}-norm.m4a"
+  ffmpeg -v error -y -i "$dest" -af loudnorm=I=-16:TP=-1.5:LRA=11 \
+    -c:a aac -b:a 192k "$norm"
+  printf '  %s\n  %s normalised\n' "$norm" "$(lufs "$norm")"
   ;;
 
 narrate)
