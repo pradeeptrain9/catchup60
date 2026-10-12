@@ -26,9 +26,12 @@
 # the same way it answers a select.
 #
 # Usage:
+#   tools/vvd up [WxH]             # start and VERIFY; start alone exits 0 on failure
 #   tools/vvd tap X Y              # 1920x1080 frame; this is the working one
 #   tools/vvd key ENTER|UP|DOWN    # accepted by the console, does nothing
 #   tools/vvd shot [path.png]
+#   tools/vvd rec start [path.webm]   # true 1920x1080, bypasses the display
+#   tools/vvd rec stop                # 180s max, no audio (no audio sink)
 #   tools/vvd console "<raw console command>"
 set -euo pipefail
 
@@ -55,13 +58,20 @@ find_port() {
   return 1
 }
 
-PORT="${VVD_CONSOLE_PORT:-$(find_port || true)}"
-[ -n "$PORT" ] || {
-  echo "no emulator console answering on 5554-5562 — is the device up?" >&2
-  echo "  source ~/vega/env && vega device list" >&2
-  exit 1; }
+# Resolved on demand, not at startup. `up` runs before any console exists —
+# resolving eagerly made it fail on the exact condition it is there to fix.
+PORT=""
+need_port() {
+  [ -n "$PORT" ] && return 0
+  PORT="${VVD_CONSOLE_PORT:-$(find_port || true)}"
+  [ -n "$PORT" ] || {
+    echo "no emulator console answering on 5554-5562 — is the device up?" >&2
+    echo "  tools/vvd up" >&2
+    exit 1; }
+}
 
 console() {
+  need_port
   # The token never reaches the command line, so it stays out of `ps` and out
   # of any shell history.
   { printf 'auth %s\n' "$(cat "$TOKEN_FILE")"; printf '%s\n' "$@"; \
@@ -69,6 +79,42 @@ console() {
 }
 
 case "${1:-}" in
+  up)
+    # Start the device and verify it, because `vega virtual-device start`
+    # cannot be trusted to say whether it worked: on a failed boot it prints
+    # "Deadline reached (60s) but virtual device unresponsive." and **exits
+    # 0**, leaving {"running":false}. Every `start && install && launch` chain
+    # therefore proceeds against a device that is not there, and the failure
+    # surfaces two commands later as "Device not found", which reads like you
+    # forgot to start it. Boots are also flaky: the same command on the same
+    # machine has taken 30s, 70s, and failed outright minutes apart.
+    res="${2:-1920,1080}"
+    tries="${VVD_TRIES:-4}"
+    for attempt in $(seq 1 "$tries"); do
+      echo "vvd up: attempt $attempt/$tries (${res})" >&2
+      vega virtual-device start --display-res="$res" >/dev/null 2>&1 || true
+      for _ in $(seq 1 12); do
+        if vega device list 2>/dev/null | grep -q VirtualDevice; then
+          echo "vvd up: device listed" >&2
+          # Listed is not the same as reachable; the console is what every
+          # other subcommand here needs.
+          for _ in $(seq 1 12); do
+            if find_port >/dev/null; then
+              echo "vvd up: console on $(find_port)" >&2
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "vvd up: listed but no console — treating as failed" >&2
+          break
+        fi
+        sleep 5
+      done
+      vega virtual-device stop >/dev/null 2>&1 || true
+    done
+    echo "vvd up: gave up after $tries attempts" >&2
+    exit 1
+    ;;
   tap)
     x="${2:?x}"; y="${3:?y}"
     console "event mouse $x $y 0 1" "event mouse $x $y 0 0" >/dev/null
@@ -81,6 +127,29 @@ case "${1:-}" in
       >/dev/null
     ;;
   text)   console "event text ${2:?what text}" >/dev/null ;;
+  rec)
+    # Video straight off the device framebuffer, which is the only way to get
+    # a true 1920x1080 capture here: this Mac's desktop maxes out at 1680x1050
+    # logical, so the VVD's own window is shown shrunk and a screen recording
+    # captures the shrunk copy. This path never touches the display.
+    #
+    # No audio — the VVD has no audio sink at all (FRICTION 7), so narration
+    # is laid under in the edit either way.
+    case "${2:-}" in
+      start)
+        dest="${3:-$PWD/out/vvd-$(date +%H%M%S).webm}"
+        mkdir -p "$(dirname "$dest")"
+        # 180s is the console's own maximum, not a choice.
+        console "screenrecord start --fps 30 --bit-rate 8M $dest" >/dev/null
+        echo "$dest"
+        ;;
+      stop)
+        console "screenrecord stop" >/dev/null
+        ;;
+      *) echo "usage: tools/vvd rec start [path.webm] | tools/vvd rec stop" >&2
+         exit 1 ;;
+    esac
+    ;;
   shot)
     dest="${2:-$PWD/out/vvd-$(date +%H%M%S).png}"
     dir="$(dirname "$dest")"

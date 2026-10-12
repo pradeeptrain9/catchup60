@@ -551,6 +551,54 @@ consumer of it is otherwise guessing.
 
 ---
 
+## 14b. `vega virtual-device start` exits 0 when the device does not start
+
+**Task:** Start the device as the first step of a scripted
+start-install-launch chain.
+
+**Steps:** `vega virtual-device start --display-res=1920,1080 && echo UP`.
+
+**Expected:** `UP` prints when the device is up, and not otherwise.
+
+**What happened:** On a failed boot the command prints
+
+```
+Deadline reached (60s) but virtual device unresponsive.
+```
+
+and **exits 0**. `UP` printed. `vega virtual-device status` immediately after
+reported `{"running":false,"process_ids":{"qemu":-1}}` and `vega device list`
+reported "No devices found". Reproduced deliberately, checking `$?`: exit code
+0, device absent.
+
+This is why entry 14 was so hard to pin down. Every `start && install &&
+launch` chain runs its remaining steps against a device that is not there, and
+the first thing that actually fails is two commands later with "Device not
+found: Cannot find an instance of Vega Virtual Device, launch the virtual
+device and try again" — which reads like operator error, not like the start
+that already reported success. The message and the exit code disagree, and
+only one of them is machine-readable.
+
+Boots are also simply flaky: on one machine, minutes apart, the same command
+took 30 seconds, then 70 seconds, then failed outright twice in a row, then
+succeeded on the first attempt again.
+
+**Workaround:** `tools/vvd up` ignores the exit code, polls `vega device list`
+until the device appears, then polls the emulator console until it answers,
+and retries the whole thing up to four times. Device listed is not the same as
+device usable — the console comes up afterwards, and a script that proceeds in
+between fails in a third distinct way.
+
+**Severity:** Major. An exit code is the one thing a script can act on, and
+this one is wrong in the failing direction.
+
+**Suggestion:** Exit non-zero when the deadline is reached. Separately, a
+`--wait-for-console` flag would remove the second poll loop, since the SDK
+knows when its own console is accepting connections and every caller that
+wants to automate anything has to discover it by probing.
+
+---
+
 ## 14. The virtual device is killed by an unrelated `adb` server
 
 **Task:** Keep the VVD alive long enough to install, launch and watch a

@@ -64,7 +64,7 @@ the same game state.
 **1. Start the device and both listeners.**
 
 ```bash
-source ~/vega/env && vega virtual-device start --display-res=1920,1080
+source ~/vega/env && ./tools/vvd up
 ```
 
 ```bash
@@ -160,44 +160,53 @@ For 1:40–2:25, these produce clean output to film rather than scrolling source
 Showing `narrationSource: bedrock` beside `guardViolations: []` makes the
 guard point in one frame. `144 passed` makes the second.
 
-## Tools, and the one setting that decides the quality
+## Tools
 
-**Set the display before anything else.** The VVD renders 1920×1080. This Mac's
-desktop is 1440×900 logical on a 2560×1600 Retina panel, so a 1920×1080 window
-does not fit and macOS shows it shrunk — a recording then captures the shrunk
-copy, and no amount of editing gets the detail back. Open System Settings →
-Displays and pick the most-space scaled option (1920×1200 if the panel offers
-it, which leaves room for the menu bar). Everything on screen becomes small for
-the session; that is the trade, and it is worth it.
+**Do not screen-record the simulator window.** The VVD renders 1920×1080 and
+this Mac's desktop maxes out at 1680×1050 logical, so the window is shown
+shrunk and a screen recording captures the shrunk copy. No edit recovers that.
 
-If no mode reaches 1920 wide, restart the device at a size that fits instead,
-and accept 720p rather than filming a downscale:
+Record the device framebuffer instead. The emulator console has
+`screenrecord start` / `stop`, which writes true 1920×1080 VP9 regardless of
+what the display is doing, and `tools/vvd` wraps it:
 
 ```bash
-vega virtual-device start --display-res=1280,720
+./tools/vvd rec start out/take-1.webm
+# ... drive the app ...
+./tools/vvd rec stop
 ```
 
-**Capture: macOS Cmd+Shift+5**, set to *Record Selected Portion*, drawn tight
-to the VVD window. Built in, no watermark, no account, and it records the
-Retina backing store — so a 1920×1080 region arrives with more pixels than the
-timeline needs and downscales cleanly. Turn the microphone **off**: the
-narration is laid in afterwards and a live mic only adds room noise.
+Verified: 1920×1080, 30fps, VP9. Two limits, both from the console and
+neither a problem here — **180 seconds maximum per take**, which is longer
+than any single shot in the table, and **no audio**, which is moot because the
+device has no audio sink at all (`FRICTION.md` 7) and narration is laid under
+in the edit regardless.
 
-**OBS Studio** is the alternative, and earns its setup cost only if you want
-the four app↔terminal switches done live as scene cuts rather than in the edit.
-For a cut this short, separate clips are less work.
+Editors prefer H.264 to VP9:
 
-**Audio.** Three sources, none of them recorded off the screen:
+```bash
+ffmpeg -i out/take-1.webm -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p out/take-1.mp4
+```
+
+**Terminal shots** are the one thing still captured from the screen, with
+**Cmd+Shift+5** → *Record Selected Portion*. Microphone **off**; voiceover is
+recorded separately. Make the terminal font large before filming — the frames
+at 1:40–2:25 exist to be read.
+
+**OBS Studio** is not needed. Its value is live scene switching, and with the
+app footage coming off the device rather than the screen there is nothing to
+switch between while recording.
+
+**Audio — three tracks, none captured from the screen:**
 
 | | |
 |---|---|
 | Narration | the app's own mp3, pulled per step 5 — the real artifact, not a re-record |
-| Voiceover | QuickTime Player → File → New Audio Recording, one take per row of the table |
-| Music | none. The rules forbid anything licensed and silence under a voiceover is fine |
+| Voiceover | QuickTime Player → File → New Audio Recording, one take per table row |
+| Music | none. Licensed audio is forbidden and silence under a voiceover is fine |
 
-**Edit: DaVinci Resolve** — free, no watermark, no export limit, handles 1080p
-and multi-track audio. iMovie works if the cut stays simple, but it fights you
-on more than two audio tracks, and this has three.
+**Edit: DaVinci Resolve** — free, no watermark, no export limit, comfortable
+with three audio tracks. iMovie fights you past two.
 
 **Export** 1920×1080, H.264, 30fps. Under 3:00.
 

@@ -160,7 +160,7 @@ of the Lambda package.
   why a fallback happened, what was trimmed, and how many runs went unexplained
 - **Sixty seconds means sixty seconds**, enforced against measured audio
 - Runs with **no AWS account** — Kokoro locally, the fixture game offline
-- **15 friction log entries**, each written while the problem was in front of us
+- **16 friction log entries**, each written while the problem was in front of us
 
 ## What we learned
 

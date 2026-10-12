@@ -30,6 +30,25 @@ has it — and `vega device list` does not print it, so a tool has to probe.
 **Please add `vega device screenshot` and `vega device key`, and print the
 console port.**
 
+The console also has `screenrecord start`/`stop`, which writes true
+1920×1080 VP9 of the device framebuffer regardless of the host display. That
+is the only way we found to capture the device at its real resolution — a
+laptop whose desktop maxes out below 1920 wide shows the VVD window shrunk,
+and a screen recording captures the shrunk copy. For anyone making a demo
+video of a Fire TV app, which is most people submitting one, this is the
+difference between a sharp capture and a soft one, and nothing points to it.
+**`vega device record` would be worth more than most of the twenty-odd
+subcommands that are there.**
+
+*`virtual-device start` exits 0 when the device fails to start.* It prints
+"Deadline reached (60s) but virtual device unresponsive." and returns success,
+so every `start && install && launch` chain proceeds against a device that is
+not there and fails two commands later with "Device not found", which reads
+like operator error. **Exit non-zero.** A `--wait-for-console` flag would also
+help: the device being listed and the console accepting connections are
+seconds apart, and every caller automating anything has to discover that by
+probing.
+
 *Key injection fails silently.* On that same console, `event send
 EV_KEY:KEY_CENTER:1` is accepted and answered `OK`, and nothing reaches the
 app, because Vega OS is not Android and the key path has nowhere to deliver.
