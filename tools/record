@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# Set up and capture a demo take, so the parts that are mechanical are not
+# done by hand at midnight before a deadline.
+#
+# What this exists to prevent, all of which happened at least once here:
+#
+#   * A replay server left running from a previous session. Its clock is
+#     relative to when it started, so after a few hours it is thousands of
+#     at-bats past the end of the game while the game list still says "In
+#     Progress (replay)". It looks correct and is useless.
+#   * A device that is not there. `vega virtual-device start` exits 0 when it
+#     fails (FRICTION 14b), so `tools/vvd up` polls for the device and then
+#     for its console rather than believing the exit code.
+#   * Filming a cold recap. Measured: 62s cold, 1.0s warm. Warming has to go
+#     through the server, not `./run recap` — the CLI defaults to Polly and
+#     Bedrock while the server synthesizes with Kokoro and the template
+#     narrator, and those are different cache keys, so a CLI warm looks like
+#     it worked and buys nothing. (It did exactly that here: a "warmed" take
+#     still spent seventy seconds on "Building your recap".) An explicit
+#     ?as_of= overrides the replay clock, which is what makes a chosen at-bat
+#     warmable at all, and the cache is on disk, so the clock can be reset
+#     afterwards by restarting the server without losing the warmth.
+#   * Capturing the simulator window. The device renders 1920x1080 and a
+#     1680x1050 desktop cannot show that without shrinking it, so video comes
+#     off the device framebuffer instead (`tools/vvd rec`).
+#
+# Usage:
+#   tools/record preflight          # device, app, servers, warm cache
+#   tools/record take [name]        # two presses in one continuous take
+#   tools/record narration <at-bat> # the audio track for the edit
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+GAME="${CATCHUP60_DEMO_GAME:-849832}"
+RATE="${CATCHUP60_DEMO_RATE:-8}"        # wall-clock seconds per at-bat
+FROM="${CATCHUP60_DEMO_FROM:-28}"       # at-bat the replay opens on
+WARM="${CATCHUP60_DEMO_WARM:-14}"       # at-bats to pre-synthesize
+OUT="${CATCHUP60_DEMO_OUT:-out/demo}"
+
+# Read off a 1920x1080 frame. Re-check with `tools/vvd shot` if the slate
+# changes — the game list grows and shrinks with the day's schedule.
+ROW1_X=900;  ROW1_Y=332       # top row of the game list
+AGAIN_X=710; AGAIN_Y=705      # "Catch up again" on the end card
+
+say() { printf '\n\033[1m==> %s\033[0m\n' "$*" >&2; }
+
+wait_for_recap() {
+  # Block until the device reports another finished recap. The app logs
+  # "done N cards in Xs" to the server, so the record of what happened is the
+  # same channel the demo already relies on.
+  local want="$1" waited=0
+  while [ "$waited" -lt 150 ]; do
+    # `grep -c` prints 0 and exits 1 when there are no matches, so `|| echo 0`
+    # appends a second zero and the arithmetic below dies on "0\n0".
+    have=$(grep -c 'done .* cards in' "$OUT/serve-http.log" 2>/dev/null || true)
+    if [ "${have:-0}" -ge "$want" ]; then
+      grep 'done .* cards in' "$OUT/serve-http.log" | tail -1 | sed 's/^/  /' >&2
+      return 0
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  echo "  no recap finished within 150s — the tap probably missed." >&2
+  echo "  check coordinates against: tools/vvd shot" >&2
+  return 1
+}
+
+servers_down() {
+  pkill -f "src\.cli serve" 2>/dev/null || true
+  wait 2>/dev/null || true   # keeps "Terminated: 15" off the transcript
+  sleep 2
+}
+
+servers_up() {
+  mkdir -p "$OUT"
+  # Two listeners, not one: Vega's media player refuses http:// audio and its
+  # fetch refuses the self-signed cert the player accepts, so manifests come
+  # over http and audio over https.
+  ./run serve --port 8080 --replay "$GAME" --replay-rate "$RATE" \
+      --replay-from "$FROM" > "$OUT/serve-http.log" 2>&1 &
+  ./run serve --port 8443 --https --replay "$GAME" --replay-rate "$RATE" \
+      --replay-from "$FROM" > "$OUT/serve-tls.log" 2>&1 &
+  for _ in $(seq 1 20); do
+    if nc -z -w1 127.0.0.1 8080 2>/dev/null && nc -z -w1 127.0.0.1 8443 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "servers did not come up — see $OUT/serve-*.log" >&2
+  return 1
+}
+
+case "${1:-}" in
+
+preflight)
+  say "device"
+  source ~/vega/env
+  ./tools/vvd up
+
+  say "build and install"
+  ( cd tv && npm run build:release >/dev/null 2>&1 )
+  vega device install-app --device VirtualDevice \
+    --packagePath "$PWD/tv/build/aarch64-release/catchup60_aarch64.vpkg" >/dev/null
+
+  say "servers (warming pass)"
+  servers_down
+  servers_up
+
+  say "warming at-bats $FROM..$((FROM + WARM)) through the server"
+  echo "  ~60s each, so about $(( (WARM + 1) * 60 / 60 )) minutes. Lower with" >&2
+  echo "  CATCHUP60_DEMO_WARM=<n> if you only need one press." >&2
+  for n in $(seq "$FROM" $((FROM + WARM))); do
+    t=$(curl -s -o /dev/null -w "%{time_total}" \
+        "http://127.0.0.1:8080/recap/$GAME?as_of=$n" || echo "ERR")
+    printf '  at-bat %s  %ss\n' "$n" "$t" >&2
+  done
+
+  say "restarting servers so the clock resets to $FROM"
+  # The cache is on disk and keyed on the at-bat, not on the clock, so the
+  # warmth survives this and every index the take can reach is now a hit.
+  servers_down
+  servers_up
+
+  say "launch"
+  vega device launch-app --device VirtualDevice \
+    --appName com.pradeepkonda.catchup60.main >/dev/null
+  sleep 8
+  ./tools/vvd shot "$OUT/preflight.png" >/dev/null
+  echo
+  echo "  ready. clock is at at-bat $FROM and advances one per ${RATE}s."
+  echo "  check $OUT/preflight.png, then: tools/record take"
+  ;;
+
+take)
+  name="${2:-take-$(date +%H%M%S)}"
+  mkdir -p "$OUT"
+  video="$PWD/$OUT/$name.webm"
+
+  say "recording -> $video"
+  ./tools/vvd rec start "$video" >/dev/null
+  sleep 2
+
+  before=$(grep -c "done .* cards in" "$OUT/serve-http.log" 2>/dev/null || true)
+  before=${before:-0}
+
+  say "press 1"
+  ./tools/vvd tap "$ROW1_X" "$ROW1_Y"
+  wait_for_recap "$((before + 1))" || { ./tools/vvd rec stop; exit 1; }
+
+  # Waiting for the recap to finish rather than sleeping a guess: a blind
+  # sleep put the second tap in the middle of a card, it landed on nothing,
+  # and the take came back with one press on it.
+  sleep 4
+  say "press 2 — the clock has moved about $(( (SECONDS) / RATE )) at-bats"
+  ./tools/vvd tap "$AGAIN_X" "$AGAIN_Y"
+  wait_for_recap "$((before + 2))" || { ./tools/vvd rec stop; exit 1; }
+  sleep 4
+
+  ./tools/vvd rec stop
+  sleep 3
+
+  if [ ! -s "$video" ]; then
+    echo "no video written — is the device still up? tools/vvd up" >&2
+    exit 1
+  fi
+
+  say "converting for the edit"
+  ffmpeg -v error -i "$video" -c:v libx264 -preset slow -crf 18 \
+    -pix_fmt yuv420p "${video%.webm}.mp4" -y
+  ffprobe -v error -select_streams v:0 \
+    -show_entries stream=width,height,r_frame_rate -of default=noprint_wrappers=1 \
+    "${video%.webm}.mp4"
+  echo
+  echo "  ${video%.webm}.mp4"
+  echo "  at-bats filmed, from the server log:"
+  grep -o "recap $GAME cursor=[0-9]*" "$OUT/serve-http.log" | tail -2 | sed 's/^/    /'
+  echo "  pull each one's audio:  tools/record narration <at-bat>"
+  ;;
+
+narration)
+  n="${2:?which at-bat — read it off the line above}"
+  say "narration for at-bat $n"
+  # --out is resolved against out/ already, so passing "out/demo/..." here
+  # lands in out/out/demo/.
+  rel="${OUT#out/}"
+  ./run recap "$GAME" --as-of "$n" --audio --voice polly-ssml \
+    --narrator bedrock --summary --out "$rel/manifest-$n.json" >/dev/null
+  src="cache/work/$GAME-$n/narration.mp3"
+  [ -f "$src" ] || { echo "no mp3 at $src" >&2; exit 1; }
+  cp "$src" "$OUT/narration-$n.mp3"
+  echo "  $OUT/narration-$n.mp3"
+  echo "  $OUT/manifest-$n.json"
+  echo
+  echo "  Align its start to the first card appearing. The manifest's segment"
+  echo "  timings came from this same file, so nothing else needs nudging."
+  ;;
+
+*)
+  sed -n '/^# Usage:/,/^set -e/p' "$0" | sed 's/^# \{0,1\}//;$d'
+  ;;
+esac

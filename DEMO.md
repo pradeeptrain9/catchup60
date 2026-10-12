@@ -58,6 +58,34 @@ in a three-day editing window, is most of the time.
 
 ## Capture runbook
 
+Most of this is mechanical and `tools/record` does it, because every step
+below has been got wrong at least once here:
+
+```bash
+./tools/record preflight      # device, build, install, warm, servers, launch
+./tools/record take take-1    # two presses in one continuous take -> .webm + .mp4
+./tools/record narration 32   # the audio for one press
+```
+
+`preflight` takes about twelve minutes, almost all of it warming. That is the
+step worth understanding rather than skipping: a cold recap spends **62
+seconds** on "Building your recap", a warm one **1.0 second**, and warming has
+to go through the server rather than `./run recap` — the CLI defaults to Polly
+and Bedrock while the server uses Kokoro and the template narrator, which are
+different cache keys. A CLI warm looks like it worked and buys nothing. Lower
+the window with `CATCHUP60_DEMO_WARM=4` if you only need one press.
+
+`take` waits for the device to report each recap finished rather than sleeping
+a guess, so the second tap cannot land in the middle of a card. Measured on a
+real run: press one at at-bat 32, press two at 40, cards 8 then 7, score 0-2
+then 3-2. That is the beat the whole video is built around and it comes out of
+one command.
+
+The manual steps below are what `tools/record` runs, kept because when a take
+goes wrong you need to do them one at a time.
+
+
+
 Everything below is scripted so the take can be repeated without hunting for
 the same game state.
 
