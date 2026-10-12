@@ -23,7 +23,15 @@ rank)
   head2 "src/engine/rank.py — the whole ranking rule"
   # The claim is that this is arithmetic rather than a prompt, so the frame
   # has to be short enough that a viewer can see there is no prompt in it.
-  sed -n '/^MIN_SWING/,/^def estimate_seconds/p' src/engine/rank.py | sed '$d'
+  # Keep the blank lines inside the function and drop only what follows it:
+  # the slice runs to the next def, and the blank run before it pushes the
+  # frame around on screen.
+  sed -n '/^MIN_SWING/,/^def estimate_seconds/p' src/engine/rank.py \
+    | awk '{ l[NR] = $0 }
+           END { last = NR
+                 if (l[last] ~ /^def estimate_seconds/) last--
+                 while (last > 0 && l[last] ~ /^[[:space:]]*$/) last--
+                 for (i = 1; i <= last; i++) print l[i] }'
   rule
   head2 "and what it selected, out of what it saw"
   ./run recap "$GAME" --as-of "$AS_OF" --narrator template 2>/dev/null \
@@ -39,9 +47,16 @@ print(json.dumps({
     'limitedBy':      e['limitedBy'],
 }, indent=2))
 print()
+def fit(text, width=66):
+    # Truncate on a word boundary. 'a line drive ' and 'to rig' read as a bug
+    # on screen, and the frame is there to look deliberate.
+    if len(text) <= width:
+        return text
+    return text[:text.rfind(' ', 0, width)].rstrip(',.') + '…'
+
 for seg in m['segments']:
     if seg['kind'] == 'play':
-        print(f\"  at-bat {seg['playIndex']:>3}   {seg['text'][:62]}\")
+        print(f\"  at-bat {seg['playIndex']:>3}   {fit(seg['text'])}\")
 "
   ;;
 
