@@ -28,6 +28,7 @@
 #   tools/record preflight          # device, app, servers, warm cache
 #   tools/record take [name]        # two presses in one continuous take
 #   tools/record narration <at-bat> # the audio track for the edit
+#   tools/record narrate <mp4> <at-bat>... # lay those tracks under the take
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -175,6 +176,73 @@ take)
   echo "  at-bats filmed, from the server log:"
   grep -o "recap $GAME cursor=[0-9]*" "$OUT/serve-http.log" | tail -2 | sed 's/^/    /'
   echo "  pull each one's audio:  tools/record narration <at-bat>"
+  ;;
+
+narrate)
+  # Lay the narration under a take, at offsets detected from the take itself.
+  #
+  # The offset that matters is when the first card appears, not when the tap
+  # happened: between them is "Building your recap", which is a second when
+  # warm and a minute when not. Detect it rather than assume it — the card's
+  # blue accent bar is bright where the loading screen is black, so one
+  # brightness sample per tenth of a second finds the transition exactly.
+  #
+  # Alignment holds for the whole recap with nothing else to nudge: the
+  # manifest's segment timings came from this same mp3, and the file's length
+  # matches what the device reported playing to within 0.03s.
+  video="${2:?path to the .mp4}"
+  shift 2
+  [ "$#" -ge 1 ] || { echo "give the at-bats, in order: tools/record narrate f.mp4 32 40" >&2; exit 1; }
+
+  card_starts() {
+    # One sample per 0.1s of the accent-bar strip; print the time at each
+    # dark -> bright edge.
+    ffmpeg -v error -i "$1" \
+      -vf "crop=16:300:130:350,scale=1:1,format=gray" -r 10 -f rawvideo - 2>/dev/null \
+      | od -An -tu1 -v | tr -s ' ' '\n' | grep -v '^$' \
+      | awk '
+          # A rise only counts as a new recap if it follows a sustained dark
+          # run. Cards dip to black for a few frames as they change, and a
+          # naive dark->bright edge reported eight recaps in a take that had
+          # two. 1.5s of dark separates a real gap (loading screen, end card)
+          # from a card transition.
+          BEGIN { dark = 0 }
+          {
+            cur = $1 + 0
+            if (cur < 20) { dark++ }
+            else {
+              if (dark >= 15) printf "%.1f\n", (NR - 1) / 10
+              dark = 0
+            }
+          }'
+  }
+
+  mapfile -t starts < <(card_starts "$video") 2>/dev/null ||     { starts=(); while IFS= read -r l; do starts+=("$l"); done < <(card_starts "$video"); }
+
+  say "detected ${#starts[@]} recap start(s): ${starts[*]}"
+  if [ "${#starts[@]}" -lt "$#" ]; then
+    echo "  fewer starts than at-bats given — check the take plays both recaps" >&2
+    exit 1
+  fi
+
+  inputs=(-i "$video"); filter=""; mixed=""; i=1
+  for n in "$@"; do
+    mp3="$OUT/narration-$n.mp3"
+    [ -f "$mp3" ] || { echo "no $mp3 — run: tools/record narration $n" >&2; exit 1; }
+    ms=$(awk -v s="${starts[$((i-1))]}" 'BEGIN{printf "%d", s*1000}')
+    inputs+=(-i "$mp3")
+    filter+="[${i}:a]adelay=${ms}|${ms}[a${i}];"
+    mixed+="[a${i}]"
+    echo "  at-bat $n -> ${starts[$((i-1))]}s" >&2
+    i=$((i+1))
+  done
+  filter+="${mixed}amix=inputs=$((i-1)):dropout_transition=0:normalize=0[a]"
+
+  dest="${video%.mp4}-narrated.mp4"
+  ffmpeg -v error -y "${inputs[@]}" -filter_complex "$filter" \
+    -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k "$dest"
+  echo
+  echo "  $dest"
   ;;
 
 narration)

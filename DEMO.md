@@ -65,7 +65,20 @@ below has been got wrong at least once here:
 ./tools/record preflight      # device, build, install, warm, servers, launch
 ./tools/record take take-1    # two presses in one continuous take -> .webm + .mp4
 ./tools/record narration 32   # the audio for one press
+./tools/record narrate out/demo/take-1.mp4 32 40   # lay both under the take
 ```
+
+`narrate` finds the offsets in the take itself rather than assuming them. What
+matters is when the first *card* appears, not when the tap happened — between
+them sits "Building your recap", which is one second warm and sixty cold. The
+card's blue accent bar is bright where the loading screen is black, so one
+brightness sample per tenth of a second finds the edge. It requires 1.5s of
+sustained dark before counting a rise, because cards dip to black as they
+change and a naive edge detector reported eight recaps in a take that had two.
+
+Nothing else needs nudging afterwards: the manifest's segment timings came
+from the same mp3, and its length matched what the device reported playing to
+within 0.03 seconds (55.920 against 55.89, 48.216 against 48.19).
 
 `preflight` takes about twelve minutes, almost all of it warming. That is the
 step worth understanding rather than skipping: a cold recap spends **62
