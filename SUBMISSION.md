@@ -53,22 +53,28 @@ prompt and nothing to hallucinate.
 The whole design rests on the league publishing those per-play numbers *during*
 a game rather than backfilling them at the final out, and that had only ever
 been confirmed on finished games. So a watcher polls a game every five minutes
-from a scheduled Lambda and records one observation per tick. Against NLCS
-game 849809, through the bottom of the 8th:
+from a scheduled Lambda and records one observation per tick. NLCS game
+849809, first pitch to final out:
 
 | | |
 |---|---|
-| live observations | 399 |
-| plays published | 1 → 66, growing 65 separate times |
+| live observations | 419 |
+| plays published | 1 → 70, growing 69 separate times |
 | largest single jump | 2 plays |
 | lag behind the live feed | **0 at-bats**, 1 at the very edge |
+| **published after the final out** | **0** |
 | errors while live | none |
 
-A feed that backfilled would show one jump from nothing to the whole game. 65
-increments of one or two plays is the opposite, and a lag of zero means the
-ranking signal sits *at* the live edge: a recap built at any moment is complete
-up to the at-bat in progress. (One increment was −1, a play withdrawn — most
-likely a call overturned on review.)
+A feed that backfilled would show one jump from nothing to the whole game at
+the whistle. This is the exact opposite twice over: 69 increments of one or
+two plays during the game, and then *nothing* added afterwards — the last live
+tick and the first Final tick, sixty-two seconds apart, both read 70 plays.
+The signal was already complete when the game ended.
+
+A lag of zero is the part that matters for the product: the ranking signal
+sits *at* the live edge, so a recap built at any moment is complete up to the
+at-bat in progress. (One increment was −1, a play withdrawn — most likely a
+call overturned on review.)
 
 The verdict is one command, `./run verdict 849809 --url <api>`, and it reports
 three outcomes rather than two: a watcher that has not yet seen a live tick
@@ -137,9 +143,9 @@ of the Lambda package.
 ## Accomplishments
 
 - A recap that is **different every time you ask**, proven on device
-- **The premise is measured, not assumed** — 399 live observations of a real
-  NLCS game show the ranking signal published at the live edge, zero at-bats
-  behind, growing 65 times across the game
+- **The premise is measured, not assumed** — 419 live observations across a
+  full NLCS game show the ranking signal published at the live edge, zero
+  at-bats behind, growing 69 times, with nothing backfilled at the whistle
 - **The guard has never been bypassed** — every path is checked, including the
   template narrator that cannot fail it, so it cannot rot
 - **Honest self-reporting** throughout: the manifest says which narrator spoke,
