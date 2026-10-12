@@ -128,6 +128,27 @@ def _watch_key(game_pk: int, at: str) -> str:
     return f"watch/{game_pk}/{at}.json"
 
 
+def _done_key(game_pk: int) -> str:
+    return f"watch/{game_pk}/_done"
+
+
+def _finished(game_pk: int) -> bool:
+    """Whether this game's record is already closed.
+
+    A rule on a fixed rate has no idea a game ended, so without this it polls
+    a finished game forever: 288 useless objects a day, each one another S3
+    GET that the verdict route has to make before it can answer. At 154
+    objects that route already takes 5.4 seconds, and eleven days of ticking
+    would have pushed it past the function's own timeout — the record would
+    have destroyed the ability to read it.
+    """
+    try:
+        s3().head_object(Bucket=BUCKET, Key=_done_key(game_pk))
+        return True
+    except Exception:
+        return False
+
+
 def watch_tick(game_pks: list[int]) -> dict:
     """One observation per game, from the schedule rather than a laptop.
 
@@ -136,8 +157,21 @@ def watch_tick(game_pks: list[int]) -> dict:
     """
     wrote = {}
     for game_pk in game_pks:
+        if _finished(game_pk):
+            wrote[game_pk] = "done"
+            continue
         row = watch.tick(game_pk)
         at = row.get("at", "unknown")
+        if row.get("state") == "Final":
+            # Record the Final tick, then close the record. One Final tick is
+            # what answers the question this watcher exists for — whether
+            # anything is backfilled at the whistle — and every tick after it
+            # is noise that makes the answer slower to read.
+            try:
+                s3().put_object(Bucket=BUCKET, Key=_done_key(game_pk),
+                                Body=b"{}", ContentType="application/json")
+            except Exception:
+                pass
         try:
             s3().put_object(
                 Bucket=BUCKET, Key=_watch_key(game_pk, at),
@@ -156,26 +190,42 @@ def watch_tick(game_pks: list[int]) -> dict:
     return wrote
 
 
+def _fetch_row(key: str) -> dict | None:
+    try:
+        return json.loads(s3().get_object(Bucket=BUCKET, Key=key)["Body"].read())
+    except Exception:
+        # A row that will not parse is a row the verdict can live without;
+        # refusing to answer at all because of one is worse.
+        return None
+
+
 def watch_rows(game_pk: int) -> list[dict]:
-    """Every tick recorded for a game, oldest first."""
-    rows = []
+    """Every tick recorded for a game.
+
+    Fetched concurrently because this is one S3 GET per tick and the round
+    trip, not the work, is the whole cost: serially, a few hundred ticks took
+    over five seconds and a full game's worth would have run the function out
+    of time. Ordering is not preserved here and does not need to be —
+    watch.verdict_rows sorts, because it also merges records from two
+    different watchers.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    keys = []
     token = None
     while True:
         kwargs = {"Bucket": BUCKET, "Prefix": f"watch/{game_pk}/"}
         if token:
             kwargs["ContinuationToken"] = token
         page = s3().list_objects_v2(**kwargs)
-        for item in page.get("Contents", []):
-            try:
-                body = s3().get_object(Bucket=BUCKET, Key=item["Key"])
-                rows.append(json.loads(body["Body"].read()))
-            except Exception:
-                # A row that will not parse is a row the verdict can live
-                # without; refusing to answer at all because of one is worse.
-                continue
+        keys += [item["Key"] for item in page.get("Contents", [])
+                 if not item["Key"].endswith("/_done")]
         if not page.get("IsTruncated"):
-            return rows
+            break
         token = page.get("NextContinuationToken")
+
+    with ThreadPoolExecutor(max_workers=32) as pool:
+        return [row for row in pool.map(_fetch_row, keys) if row is not None]
 
 
 # --- routes ------------------------------------------------------------------

@@ -52,9 +52,12 @@ prompt and nothing to hallucinate.
 **That signal is published live, and we measured it rather than assuming it.**
 The whole design rests on the league publishing those per-play numbers *during*
 a game rather than backfilling them at the final out, and that had only ever
-been confirmed on finished games. So a watcher polls a game every five minutes
-from a scheduled Lambda and records one observation per tick. NLCS game
-849809, first pitch to final out:
+been confirmed on finished games. So two watchers poll a game and record one
+observation per tick — one on a laptop every sixty seconds, one on a scheduled
+Lambda every five minutes, because the laptop one kept dying and a premise
+confirmed by a record that stops when a lid closes is a premise still
+unconfirmed. Their records merge; neither is complete alone. NLCS game 849809,
+first pitch to final out:
 
 | | |
 |---|---|
@@ -70,6 +73,11 @@ the whistle. This is the exact opposite twice over: 69 increments of one or
 two plays during the game, and then *nothing* added afterwards — the last live
 tick and the first Final tick, sixty-two seconds apart, both read 70 plays.
 The signal was already complete when the game ended.
+
+Each watcher reaches the same verdict on its own — 378 live observations and
+67 increments from the laptop, 41 and 34 from the five-minute Lambda — so the
+answer does not depend on the merge, and the merged figure is quoted only
+because it is the complete record.
 
 A lag of zero is the part that matters for the product: the ranking signal
 sits *at* the live edge, so a recap built at any moment is complete up to the
