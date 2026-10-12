@@ -125,6 +125,15 @@ Amazon Bedrock (Claude Haiku 4.5) for phrasing, Amazon Polly for speech,
 Lambda + API Gateway + S3 deployed. Kokoro ONNX as a local zero-credential
 fallback so the repo runs with no AWS account at all.
 
+The app can be pointed at either backend from a row on the home screen, and
+that row is scaffolding rather than a feature. It exists so the deployed stack
+can be shown working on a television instead of asserted in a paragraph: press
+it and the list repopulates from Lambda, with the replayed game gone because
+the deployed stack has no replay server. A viewer has no idea what "Local
+server" means and no basis on which to choose, so in a real product this is a
+build flag and not a row — one that is currently taking a slot on the home
+screen away from an actual game.
+
 ## Challenges
 
 **The device could not be seen or driven.** The Vega CLI has no screenshot and
