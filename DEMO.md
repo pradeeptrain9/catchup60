@@ -243,8 +243,20 @@ switch between while recording.
 | | |
 |---|---|
 | Narration | the app's own mp3, pulled per step 5 — the real artifact, not a re-record |
-| Voiceover | QuickTime Player → File → New Audio Recording, one take per table row |
+| Voiceover | QuickTime Player → File → New Audio Recording, one take per table row. **It does not save anywhere** — see below |
 | Music | none. Licensed audio is forbidden and silence under a voiceover is fine |
+
+**QuickTime's recordings are not saved to a folder.** "New Audio Recording"
+keeps the take as an unsaved document inside the app's sandbox container, and
+starting the next recording replaces it — so a session of ten takes leaves one
+survivor unless each is saved by hand. Stop the recording, then:
+
+```bash
+./tools/record vo intro      # -> out/demo/intro.m4a
+```
+
+It reports the level too. The narration sits near −24 dB mean; a voiceover
+quieter than that is fighting the app's audio instead of leading it.
 
 **Edit: DaVinci Resolve** — free, no watermark, no export limit, comfortable
 with three audio tracks. iMovie fights you past two.

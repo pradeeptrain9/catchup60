@@ -29,6 +29,7 @@
 #   tools/record take [name]        # two presses in one continuous take
 #   tools/record narration <at-bat> # the audio track for the edit
 #   tools/record narrate <mp4> <at-bat>... # lay those tracks under the take
+#   tools/record vo [name]          # rescue the take QuickTime has not saved
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -176,6 +177,34 @@ take)
   echo "  at-bats filmed, from the server log:"
   grep -o "recap $GAME cursor=[0-9]*" "$OUT/serve-http.log" | tail -2 | sed 's/^/    /'
   echo "  pull each one's audio:  tools/record narration <at-bat>"
+  ;;
+
+vo)
+  # Grab the voiceover take QuickTime is holding but has not saved.
+  #
+  # "New Audio Recording" does not write to a folder. The take lives as an
+  # unsaved document inside the app's sandbox container and is replaced the
+  # moment you start the next one, so a session of takes leaves exactly one
+  # survivor unless each is saved by hand. This copies the current one out
+  # under a name you choose.
+  name="${2:-vo-$(date +%H%M%S)}"
+  src="$HOME/Library/Containers/com.apple.QuickTimePlayerX/Data/Library/Autosave Information/Unsaved QuickTime Player Document.qtpxcomposition/Audio Recording.m4a"
+  [ -f "$src" ] || {
+    echo "nothing unsaved in QuickTime." >&2
+    echo "  Stop the recording first; it does not have to be saved." >&2
+    exit 1; }
+  mkdir -p "$OUT"
+  dest="$OUT/$name.m4a"
+  cp "$src" "$dest"
+  dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$dest")
+  vol=$(ffmpeg -i "$dest" -af volumedetect -f null /dev/null 2>&1 \
+        | grep -oE "(mean|max)_volume: [-0-9.]*" | tr '\n' ' ')
+  echo "  $dest"
+  printf '  %.1fs  %s\n' "$dur" "$vol"
+  # Narration sits near -24 dB mean. A voiceover quieter than that will be
+  # fighting the app's own audio in the mix rather than leading it.
+  awk -v v="$(echo "$vol" | grep -o 'mean_volume: [-0-9.]*' | cut -d' ' -f2)" \
+    'BEGIN { if (v < -26) print "  quieter than the narration (-24 dB) — consider moving closer or re-taking" }'
   ;;
 
 narrate)
