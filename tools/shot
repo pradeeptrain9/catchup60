@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Terminal frames for the demo video, so nothing long is typed on camera and
+# every frame is the same one twice if a take has to be redone.
+#
+# Each frame is sized to be read on a TV at a glance. That rules out scrolling
+# JSON: a manifest is ninety lines and the four that matter are the claim.
+#
+# Usage:
+#   tools/shot rank     # 1:40-2:05 — which plays mattered is arithmetic
+#   tools/shot guard    # 2:05-2:25 — and every number is checked
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+GAME="${CATCHUP60_DEMO_GAME:-849832}"
+AS_OF="${CATCHUP60_DEMO_ASOF:-39}"
+
+rule() { printf '\n\033[2m%s\033[0m\n\n' "────────────────────────────────────────────────────────"; }
+head2() { printf '\033[1m%s\033[0m\n\n' "$*"; }
+
+case "${1:-}" in
+
+rank)
+  head2 "src/engine/rank.py — the whole ranking rule"
+  # The claim is that this is arithmetic rather than a prompt, so the frame
+  # has to be short enough that a viewer can see there is no prompt in it.
+  sed -n '/^MIN_SWING/,/^def estimate_seconds/p' src/engine/rank.py | sed '$d'
+  rule
+  head2 "and what it selected, out of what it saw"
+  ./run recap "$GAME" --as-of "$AS_OF" --narrator template 2>/dev/null \
+    | python3 -c "
+import sys, json
+m = json.load(sys.stdin)
+e = m['engine']
+print(json.dumps({
+    'considered':     e['considered'],
+    'selected':       e['selected'],
+    'runsExplained':  e['runsExplained'],
+    'runsTotal':      e['runsTotal'],
+    'limitedBy':      e['limitedBy'],
+}, indent=2))
+print()
+for seg in m['segments']:
+    if seg['kind'] == 'play':
+        print(f\"  at-bat {seg['playIndex']:>3}   {seg['text'][:62]}\")
+"
+  ;;
+
+guard)
+  head2 "src/narrate/guard.py — every number the model wrote, checked"
+  sed -n '/^def check_segments/,$p' src/narrate/guard.py
+  rule
+  head2 "a real run"
+  ./run recap "$GAME" --as-of "$AS_OF" --narrator bedrock 2>/dev/null \
+    | python3 -c "
+import sys, json
+m = json.load(sys.stdin)
+print(json.dumps({
+    'narrationSource':   m['narrationSource'],
+    'narrationFallback': m['narrationFallback'],
+    'guardViolations':   m['guardViolations'],
+}, indent=2))
+"
+  rule
+  head2 "and what happens when it does not pass"
+  # The voiceover claims a fallback nobody can see in a healthy run — a model
+  # that behaves cannot be made to misbehave on camera. These are the tests
+  # that hold it, and their names are the claim.
+  .venv/bin/python -m pytest tests/narrate/ -o addopts= -v --no-header 2>&1 \
+    | grep "::" \
+    | grep -iE "invent|fall_back|reject|retry|reported_as" \
+    | sed 's|tests/narrate/||; s/ PASSED.*/  ok/; s/::/  /g'
+  ;;
+
+*)
+  sed -n '/^# Usage:/,/^set -e/p' "$0" | sed 's/^# \{0,1\}//;$d'
+  ;;
+esac

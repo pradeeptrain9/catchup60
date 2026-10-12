@@ -198,6 +198,34 @@ immediately.
 
 ## Terminal shots worth having
 
+Two of them are packaged, so nothing long is typed on camera and a retake is
+the same frame twice:
+
+```bash
+./tools/shot rank     # 1:40-2:05
+./tools/shot guard    # 2:05-2:25
+```
+
+`rank` shows the whole ranking rule — it fits on a screen, which is itself the
+argument that there is no prompt in it — then what it selected out of what it
+saw, and the five at-bats it chose.
+
+`guard` shows `check_segments`, then a real run reporting `narrationSource:
+bedrock` with `guardViolations: []`, then the tests whose names are the claim
+the voiceover makes:
+
+```
+test_an_invented_figure_triggers_one_retry             ok
+test_two_rejections_fall_back_to_the_template          ok
+test_a_rejected_rewrite_is_reported_as_template_...    ok
+test_catches_an_invented_inning                        ok
+```
+
+That third frame is there because a healthy run cannot show a fallback: a model
+that behaves cannot be made to misbehave on camera, and faking one would be
+the one dishonest frame in the video. The tests are the honest way to show the
+guard bites.
+
 For 1:40–2:25, these produce clean output to film rather than scrolling source:
 
 ```bash
