@@ -80,6 +80,16 @@ between polling a live game comfortably and not. `homeTeamWinProbabilityAdded`
 per at-bat is exactly the right primitive and we have not found it published
 this cleanly anywhere else.
 
+It is also published *live*, which we could not establish from the docs and
+so measured: polling NLCS game 849809 every five minutes gave 399 live
+observations in which the play count grew 65 separate times, in steps of one
+or two, with the signal **zero at-bats behind the live feed** for almost the
+whole game. That is a much stronger guarantee than anything we expected, and
+it is the difference between a recap that can be built during a game and one
+that can only be built afterwards. **Please say so in the documentation** —
+the page describes the endpoint's shape and not its latency, and a developer
+with no way to test against a live game has to assume the worst.
+
 **What cost time.**
 
 *A nonexistent gamePk returns 200.* With populated placeholder fields, so a

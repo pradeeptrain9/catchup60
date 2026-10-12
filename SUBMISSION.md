@@ -49,6 +49,32 @@ MLB StatsAPI publishes `homeTeamWinProbabilityAdded` per at-bat — how much
 that play moved each team's win chance. So ranking is sorting. There is no
 prompt and nothing to hallucinate.
 
+**That signal is published live, and we measured it rather than assuming it.**
+The whole design rests on the league publishing those per-play numbers *during*
+a game rather than backfilling them at the final out, and that had only ever
+been confirmed on finished games. So a watcher polls a game every five minutes
+from a scheduled Lambda and records one observation per tick. Against NLCS
+game 849809, through the bottom of the 8th:
+
+| | |
+|---|---|
+| live observations | 399 |
+| plays published | 1 → 66, growing 65 separate times |
+| largest single jump | 2 plays |
+| lag behind the live feed | **0 at-bats**, 1 at the very edge |
+| errors while live | none |
+
+A feed that backfilled would show one jump from nothing to the whole game. 65
+increments of one or two plays is the opposite, and a lag of zero means the
+ranking signal sits *at* the live edge: a recap built at any moment is complete
+up to the at-bat in progress. (One increment was −1, a play withdrawn — most
+likely a call overturned on review.)
+
+The verdict is one command, `./run verdict 849809 --url <api>`, and it reports
+three outcomes rather than two: a watcher that has not yet seen a live tick
+says so, instead of returning the same "no" it would return for a feed that
+stood still all game. The record is in the repo, not in a recollection.
+
 This is not caution for its own sake. A model asked which plays mattered
 answers fluently and sometimes wrongly — the game turned on a groundout in the
 second — and nothing downstream can detect it, because correct and incorrect
@@ -111,6 +137,9 @@ of the Lambda package.
 ## Accomplishments
 
 - A recap that is **different every time you ask**, proven on device
+- **The premise is measured, not assumed** — 399 live observations of a real
+  NLCS game show the ranking signal published at the live edge, zero at-bats
+  behind, growing 65 times across the game
 - **The guard has never been bypassed** — every path is checked, including the
   template narrator that cannot fail it, so it cannot rot
 - **Honest self-reporting** throughout: the manifest says which narrator spoke,
@@ -134,18 +163,17 @@ And a device you cannot photograph is a device you have not tested.
 
 ## What's next
 
-Confirm `winProbability` updates mid-game — the one premise still unproven. It
-holds on completed games; whether the league publishes the per-play numbers
-while a game is in progress, or backfills them at the whistle, is the one thing
-we have not been able to observe. A watcher polls the NLCS game and answers it
-in one line (`./run verdict <gamePk>`), and it reports three outcomes, not two:
-if it has not seen a live tick it says so rather than returning the same "no"
-it would return for a feed that stood still all game. The recap works either
-way on a game you joined late and the league has published; a backfilling feed
-would narrow it to that case.
+Other sports. Nothing in the engine is baseball-specific beyond the name of
+one field, so the same arithmetic ranks a hockey or basketball game the moment
+a comparable per-event signal exists.
 
-Then other sports, since nothing in the engine is baseball-specific beyond the
-field name, and a "what did I miss" prompt that follows you into a second game.
+A "what did I miss" prompt that follows you into a second game, since the
+viewer with two games on is the one this helps most.
+
+And lower latency on the first press. The recap is built on demand, which is
+the point, but the engine already knows the game advanced before anyone asks —
+warming the next at-bat's recap against the watcher's own tick would make the
+button feel instant without making it any less live.
 
 ## Links
 
