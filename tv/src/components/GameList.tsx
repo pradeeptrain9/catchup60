@@ -20,6 +20,32 @@ export const GameList = ({games, onPick, onSwitchOrigin}: Props) => {
 
   return (
     <TVFocusGuideView style={styles.list} autoFocus>
+      {/* Which backend answered this list, labelled with where it would go
+          rather than where it is — a row saying "AWS" while showing local
+          data is the one thing worse than no row at all.
+
+          Above the games, not below them. Below, it was the last child of a
+          list whose length is not ours to choose: however many games are on,
+          plus the fixture. At five games it rendered past the bottom of a
+          1080-line screen and could not be reached at all. Focus still starts
+          on the first playable game, because that Pressable asks for it
+          explicitly and hasTVPreferredFocus outranks document order. */}
+      <Pressable
+        testID="origin-switch"
+        onPress={onSwitchOrigin}
+        style={({focused}) => [styles.switchRow, focused && styles.rowOn]}>
+        {({focused}) => (
+          <>
+            <Text style={[styles.switchText, focused && styles.statusOn]}>
+              Source: {originLabel(getOrigin())}
+            </Text>
+            <Text style={[styles.switchHint, focused && styles.statusOn]}>
+              switch to {originLabel(getOrigin() === 'local' ? 'cloud' : 'local')}
+            </Text>
+          </>
+        )}
+      </Pressable>
+
       {games.map((game, index) => {
         if (!game.playable) {
           // Shown, not offered: a scheduled game has no plays to recap, and
@@ -59,26 +85,6 @@ export const GameList = ({games, onPick, onSwitchOrigin}: Props) => {
           </Pressable>
         );
       })}
-
-      {/* Which backend answered this list. Last so it never takes the focus
-          that belongs to a game, and labelled with where it would go rather
-          than where it is, because a row that says "AWS" while showing local
-          data is the one thing worse than no row at all. */}
-      <Pressable
-        testID="origin-switch"
-        onPress={onSwitchOrigin}
-        style={({focused}) => [styles.switchRow, focused && styles.rowOn]}>
-        {({focused}) => (
-          <>
-            <Text style={[styles.switchText, focused && styles.statusOn]}>
-              Source: {originLabel(getOrigin())}
-            </Text>
-            <Text style={[styles.switchHint, focused && styles.statusOn]}>
-              switch to {originLabel(getOrigin() === 'local' ? 'cloud' : 'local')}
-            </Text>
-          </>
-        )}
-      </Pressable>
     </TVFocusGuideView>
   );
 };
@@ -87,7 +93,9 @@ const styles = StyleSheet.create({
   // Flows from the top rather than centring. Centring looked better at four
   // rows and overflowed at five — the focused card grew upward over the
   // header — and the row count is not ours to choose: it is however many
-  // games are on, plus the fixture, plus the source switch.
+  // games are on, plus the fixture. The source switch is first rather than
+  // last for the same reason: anything after the games is the thing that
+  // falls off the bottom when the slate is long.
   list: {flex: 1, justifyContent: 'flex-start', gap: 12},
   row: {flexDirection: 'row', alignItems: 'center',
         justifyContent: 'space-between', paddingHorizontal: 32,
@@ -106,7 +114,7 @@ const styles = StyleSheet.create({
   statusDim: {color: '#484f58', fontSize: 18},
   switchRow: {flexDirection: 'row', alignItems: 'center',
               justifyContent: 'space-between', paddingHorizontal: 32,
-              paddingVertical: 14, borderRadius: 10, marginTop: 10,
+              paddingVertical: 14, borderRadius: 10, marginBottom: 10,
               backgroundColor: 'transparent', borderWidth: 2,
               borderColor: '#161b22'},
   switchText: {color: '#8b949e', fontSize: 20},

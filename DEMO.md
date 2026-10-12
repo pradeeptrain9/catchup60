@@ -161,9 +161,11 @@ so taps go through the console helper. Coordinates are in the 1920×1080 frame.
 ./tools/vvd tap 900 332
 ```
 
-That is the top row. The source switch is the last row; take a screenshot
-first and read its position off that, because it moves with the number of
-games on the slate:
+That is the top row. The source switch is the **first** row, at roughly
+`960 318`, and it stays there whatever the slate looks like — it used to be
+last and at five games it rendered past the bottom of the screen, which is a
+beat of the video that simply could not be filmed. Take a screenshot anyway to
+confirm, since the game rows below it do move:
 
 ```bash
 ./tools/vvd shot /tmp/frame.png
