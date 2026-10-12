@@ -66,7 +66,15 @@ below has been got wrong at least once here:
 ./tools/record take take-1    # two presses in one continuous take -> .webm + .mp4
 ./tools/record narration 32   # the audio for one press
 ./tools/record narrate out/demo/take-1.mp4 32 40   # lay both under the take
+./tools/record narrate screen.mp4 32@18.4 40@96.2 # ...or give the offsets
 ```
+
+The second form is for a **screen recording** rather than a device capture.
+Detection reads a fixed strip of a full-frame device capture; a QuickTime
+recording of the whole screen has the app somewhere inside a larger frame,
+behind a menu bar and a window border, so the strip lands on the wrong pixels.
+Read the offsets off the recording instead — the moment the first card appears,
+in seconds — and pass them as `<at-bat>@<seconds>`.
 
 `narrate` finds the offsets in the take itself rather than assuming them. What
 matters is when the first *card* appears, not when the tap happened — between

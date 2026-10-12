@@ -38,6 +38,14 @@ RATE="${CATCHUP60_DEMO_RATE:-8}"        # wall-clock seconds per at-bat
 FROM="${CATCHUP60_DEMO_FROM:-28}"       # at-bat the replay opens on
 WARM="${CATCHUP60_DEMO_WARM:-14}"       # at-bats to pre-synthesize
 OUT="${CATCHUP60_DEMO_OUT:-out/demo}"
+# 1600x900 by default, not 1920x1080. The device can render 1920 and this
+# display cannot show it: the desktop maxes out at 1680x1050 logical, so a
+# 1920-wide window is shown shrunk and a QuickTime screen recording captures
+# the shrunk copy. 1600x900 is the largest 16:9 that fits with the title bar
+# and menu bar, so what is on screen is what the device drew. Use 1920,1080
+# when capturing with `tools/vvd rec` instead, which reads the framebuffer and
+# does not care what the display can show.
+RES="${CATCHUP60_DEMO_RES:-1600,900}"
 
 # Read off a 1920x1080 frame. Re-check with `tools/vvd shot` if the slate
 # changes — the game list grows and shrinks with the day's schedule.
@@ -104,7 +112,7 @@ case "${1:-}" in
 preflight)
   say "device"
   source ~/vega/env
-  ./tools/vvd up
+  ./tools/vvd up "$RES"
 
   say "build and install"
   ( cd tv && npm run build:release >/dev/null 2>&1 )
@@ -234,6 +242,15 @@ narrate)
   shift 2
   [ "$#" -ge 1 ] || { echo "give the at-bats, in order: tools/record narrate f.mp4 32 40" >&2; exit 1; }
 
+  # An at-bat may carry its own offset as 32@74.5, which skips detection.
+  # Detection reads a fixed strip of a full-frame device capture; a QuickTime
+  # recording of the whole screen has the app somewhere inside a larger frame,
+  # behind a menu bar and a window border, so the strip lands on the wrong
+  # pixels. Rather than guess the geometry, let the offset be given — read off
+  # the recording as the moment the first card appears.
+  manual=0
+  for a in "$@"; do case "$a" in *@*) manual=1 ;; esac; done
+
   card_starts() {
     # One sample per 0.1s of the accent-bar strip; print the time at each
     # dark -> bright edge.
@@ -257,16 +274,29 @@ narrate)
           }'
   }
 
-  mapfile -t starts < <(card_starts "$video") 2>/dev/null ||     { starts=(); while IFS= read -r l; do starts+=("$l"); done < <(card_starts "$video"); }
-
-  say "detected ${#starts[@]} recap start(s): ${starts[*]}"
-  if [ "${#starts[@]}" -lt "$#" ]; then
-    echo "  fewer starts than at-bats given — check the take plays both recaps" >&2
-    exit 1
+  starts=()
+  if [ "$manual" = 1 ]; then
+    for a in "$@"; do
+      case "$a" in
+        *@*) starts+=("${a##*@}") ;;
+        *) echo "give every offset, not some: tools/record narrate f.mp4 32@18.4 40@96.2" >&2; exit 1 ;;
+      esac
+    done
+    say "using the offsets you gave: ${starts[*]}"
+  else
+    while IFS= read -r l; do starts+=("$l"); done < <(card_starts "$video")
+    say "detected ${#starts[@]} recap start(s): ${starts[*]}"
+    if [ "${#starts[@]}" -lt "$#" ]; then
+      echo "  fewer starts than at-bats given." >&2
+      echo "  For a screen recording rather than a device capture, give the" >&2
+      echo "  offsets:  tools/record narrate f.mp4 32@18.4 40@96.2" >&2
+      exit 1
+    fi
   fi
 
   inputs=(-i "$video"); filter=""; mixed=""; i=1
-  for n in "$@"; do
+  for spec in "$@"; do
+    n="${spec%%@*}"
     mp3="$OUT/narration-$n.mp3"
     [ -f "$mp3" ] || { echo "no $mp3 — run: tools/record narration $n" >&2; exit 1; }
     ms=$(awk -v s="${starts[$((i-1))]}" 'BEGIN{printf "%d", s*1000}')
