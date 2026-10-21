@@ -91,18 +91,6 @@ Series games as well, and all three agree:
 Three games, two series, 507 live observations, 141 separate increments, and a
 lag that never exceeded one at-bat in any of them.
 
-And it is not one game. The same watchers ran across two more Championship
-Series games that night, and both returned the same verdict:
-
-| game | live observations | plays published | increments | lag |
-|---|---|---|---|---|
-| 849809 LAD @ MIL | 419 | 1 → 70 | 69 | 0–1 |
-| 849812 LAD @ MIL | 46 | 1 → 75 | 37 | 0–1 |
-| 849820 CLE @ TB | 42 | 1 → 77 | 35 | 0–1 |
-
-Three games, two series, no errors while live, and the lag never grew past one
-at-bat in any of them.
-
 A lag of zero is the part that matters for the product: the ranking signal
 sits *at* the live edge, so a recap built at any moment is complete up to the
 at-bat in progress. (One increment was −1, a play withdrawn — most likely a
@@ -187,8 +175,7 @@ of the Lambda package.
 - **The premise is measured, not assumed** — 507 live observations across
   three Championship Series games show the ranking signal published at the
   live edge, never more than one at-bat behind, growing 141 separate times,
-  with nothing backfilled at the whistle —
-  and two more Championship Series games return the same verdict
+  with nothing backfilled at the whistle
 - **The guard has never been bypassed** — every path is checked, including the
   template narrator that cannot fail it, so it cannot rot
 - **Honest self-reporting** throughout: the manifest says which narrator spoke,
